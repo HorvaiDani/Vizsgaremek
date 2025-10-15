@@ -1,0 +1,136 @@
+/* Fő alkalmazás stílusok - Az alkalmazás alapvető megjelenése */
+
+.app {
+  min-height: 100vh; /* Teljes képernyő magasság */
+  background: var(--app-bg);
+}
+
+/* Fő tartalom terület - fejléc alatt */
+.main-content {
+  padding-top: 100px; /* Fejléc magasságának kompenzálása */
+  min-height: calc(100vh - 100px); /* Teljes képernyő mínusz fejléc */
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* Responsive main content adjustments */
+@media (max-width: 768px) {
+  .main-content {
+    padding-top: 80px;
+    min-height: calc(100vh - 80px);
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding-top: 70px;
+    min-height: calc(100vh - 70px);
+  }
+}
+
+/* Home info section styles */
+.home-info-section {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 0 2rem;
+}
+
+.home-info-title {
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  font-size: clamp(1.25rem, 3vw, 1.75rem);
+  text-align: center;
+}
+
+.home-info-description {
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.6;
+  font-size: clamp(0.9rem, 2vw, 1rem);
+}
+
+@media (max-width: 768px) {
+  .home-info-section {
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+  }
+  
+  .home-info-title {
+    margin-bottom: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-info-section {
+    margin: 1rem auto;
+    padding: 0 0.75rem;
+  }
+  
+  .home-info-title {
+    margin-bottom: 0.5rem;
+  }
+  
+  .home-info-description {
+    line-height: 1.5;
+  }
+}
+
+/* Sima görgetés */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Egyedi görgetősáv stílusok */
+::-webkit-scrollbar {
+  width: 8px; /* Görgetősáv szélessége */
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1); /* Görgetősáv háttér */
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 107, 53, 0.6); /* Görgetősáv színe */
+  border-radius: 4px; /* Lekerekített sarkok */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 107, 53, 0.8); /* Hover állapot */
+}
+
+/* Betöltés animáció */
+@keyframes fadeInUp {
+  from {
+    opacity: 0; /* Átlátszó kezdés */
+    transform: translateY(30px); /* Lentről kezdés */
+  }
+  to {
+    opacity: 1; /* Teljes láthatóság */
+    transform: translateY(0); /* Végleges pozíció */
+  }
+}
+
+/* Film szakasz animáció */
+.movie-section {
+  animation: fadeInUp 0.6s ease-out; /* Feljövő animáció */
+}
+
+/* Fókusz stílusok akadálymentességhez */
+button:focus-visible,
+.movie-card:focus-visible {
+  outline: 2px solid #ff6b35; /* Narancssárga fókusz keret */
+  outline-offset: 2px; /* Keret távolság */
+}
+
+/* Csökkentett mozgás támogatás */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important; /* Animációk letiltása */
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  html {
+    scroll-behavior: auto; /* Sima görgetés letiltása */
+  }
+}

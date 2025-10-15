@@ -1,0 +1,34 @@
+.clickspark-container {
+  position: fixed;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.clickspark {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: radial-gradient(circle, var(--gradient-start), var(--gradient-end));
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: spark 600ms ease-out forwards;
+}
+
+@keyframes spark {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(
+      calc(-50% + (cos(var(--i) * 30deg) * 60px)),
+      calc(-50% + (sin(var(--i) * 30deg) * 60px))
+    )
+    scale(0.1);
+  }
+}
+
+

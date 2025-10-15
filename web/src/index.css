@@ -1,0 +1,217 @@
+/* Globális CSS változók és alapbeállítások */
+
+:root {
+  /* Betűtípus beállítások */
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6; /* Sor magasság */
+  font-weight: 400; /* Betűvastagság */
+
+  /* Betű renderelés optimalizálás */
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Alapértelmezett (dark) fallback változók röviden, hogy FOUC ne legyen */
+  --primary-color: #ff6b35;
+  --primary-hover: #e55a2b;
+  --secondary-color: #f7931e;
+  --text-primary: #ffffff;
+}
+
+/* Témák: sötét és világos külön változók */
+.theme-dark {
+  --app-bg: #0a0a0a;
+  --background-card: rgba(255, 255, 255, 0.05);
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --text-muted: #999999;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --shadow-light: rgba(0, 0, 0, 0.3);
+  --shadow-medium: rgba(0, 0, 0, 0.4);
+  --shadow-heavy: rgba(0, 0, 0, 0.6);
+  --gradient-start: #ff6b35;
+  --gradient-end: #f7931e;
+  --header-gradient: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+}
+
+.theme-light {
+  --app-bg: #ffffff;
+  --background-card: #f2f2f2;
+  --text-primary: #0a0a0a;
+  --text-secondary: #333333;
+  --text-muted: #666666;
+  --border-color: rgba(0, 0, 0, 0.12);
+  --shadow-light: rgba(0, 0, 0, 0.1);
+  --shadow-medium: rgba(0, 0, 0, 0.15);
+  --shadow-heavy: rgba(0, 0, 0, 0.25);
+  --gradient-start: #7c3aed; /* indigo-600 */
+  --gradient-end: #ec4899;   /* pink-500 */
+  --header-gradient: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+}
+
+/* Minden elem box-sizing beállítása */
+* {
+  box-sizing: border-box;
+}
+
+/* Body alapbeállítások */
+body {
+  margin: 0; /* Margó eltávolítása */
+  padding: 0; /* Padding eltávolítása */
+  min-width: 320px; /* Minimális szélesség */
+  min-height: 100vh; /* Teljes képernyő magasság */
+  background: var(--app-bg); /* Háttér szín - témától függ */
+  overflow-x: hidden; /* Vízszintes görgetés letiltása */
+  font-size: 16px; /* Alapértelmezett betűméret */
+  -webkit-text-size-adjust: 100%; /* iOS Safari betűméret automatikus beállítás */
+  -ms-text-size-adjust: 100%; /* IE betűméret automatikus beállítás */
+}
+
+/* Root div beállítások */
+#root {
+  width: 100%; /* Teljes szélesség */
+  min-height: 100vh; /* Teljes képernyő magasság */
+}
+
+/* Tipográfia stílusok */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0; /* Margó eltávolítása */
+  font-weight: 600; /* Félkövér betű */
+  line-height: 1.2; /* Sor magasság */
+}
+
+/* Címsor méretek responsive módon */
+h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem); /* H1 méret */
+}
+
+h2 {
+  font-size: clamp(1.5rem, 4vw, 2.5rem); /* H2 méret */
+}
+
+h3 {
+  font-size: clamp(1.25rem, 3vw, 1.75rem); /* H3 méret */
+}
+
+/* Bekezdés stílusok */
+p {
+  margin: 0; /* Margó eltávolítása */
+  line-height: 1.6; /* Sor magasság */
+}
+
+/* Link stílusok */
+a {
+  color: var(--primary-color); /* Fő szín */
+  text-decoration: none; /* Aláhúzás eltávolítása */
+  transition: color 0.3s ease; /* Színváltás animáció */
+}
+
+a:hover {
+  color: var(--primary-hover); /* Hover szín */
+}
+
+/* Gomb alapbeállítások */
+button {
+  font-family: inherit; /* Örökölt betűtípus */
+  font-size: inherit; /* Örökölt betűméret */
+  border: none; /* Keret eltávolítása */
+  background: none; /* Háttér eltávolítása */
+  cursor: pointer; /* Mutató kurzor */
+  transition: all 0.3s ease; /* Átmenet animáció */
+}
+
+/* Kép alapbeállítások */
+img {
+  max-width: 100%; /* Maximális szélesség */
+  height: auto; /* Automatikus magasság */
+  display: block; /* Blokk megjelenítés */
+}
+
+/* Segédosztályok */
+.sr-only {
+  /* Képernyőolvasó számára látható, vizuálisan rejtett */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Betöltés állapotok */
+.loading {
+  opacity: 0.6; /* Átlátszóság csökkentése */
+  pointer-events: none; /* Kattintás letiltása */
+}
+
+/* Hiba állapotok */
+.error {
+  color: #ff4444; /* Piros szín hibákhoz */
+}
+
+/* Siker állapotok */
+.success {
+  color: #44ff44; /* Zöld szín sikerekhez */
+}
+
+/* Responsive breakpoints és segédosztályok */
+@media (max-width: 1200px) {
+  :root {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    font-size: 13px;
+  }
+}
+
+/* Touch-friendly interactive elements */
+@media (hover: none) and (pointer: coarse) {
+  button, 
+  .movie-card,
+  a {
+    min-height: 44px; /* iOS touch target minimum */
+    min-width: 44px;
+  }
+  
+  .movie-card:hover {
+    transform: none; /* Disable hover transforms on touch devices */
+  }
+  
+  button:hover,
+  a:hover {
+    transform: none; /* Disable hover transforms on touch devices */
+  }
+}
+
+/* Container queries support (modern browsers) */
+@supports (container-type: inline-size) {
+  .movie-grid {
+    container-type: inline-size;
+  }
+}
+
+/* Safe area support for notched devices */
+@supports (padding: max(0px)) {
+  .header {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+  
+  .main-content {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+}
