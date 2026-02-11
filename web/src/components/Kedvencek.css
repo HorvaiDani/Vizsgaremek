@@ -1,0 +1,73 @@
+.kedvencek-page {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.kedvencek-title {
+  color: #fff;
+  font-size: 1.75rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.kedvencek-info {
+  color: #999;
+  font-size: 0.95rem;
+  margin: 0 0 1.5rem 0;
+}
+
+.kedvencek-empty {
+  color: #aaa;
+  font-size: 1rem;
+  padding: 2rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+}
+
+.kedvencek-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.kedvencek-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.kedvencek-link {
+  flex: 1;
+  color: #66c0f4;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.kedvencek-link:hover {
+  text-decoration: underline;
+}
+
+.kedvencek-date {
+  color: #888;
+  font-size: 0.85rem;
+}
+
+.kedvencek-delete {
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 100, 100, 0.2);
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 100, 100, 0.4);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.kedvencek-delete:hover {
+  background: rgba(255, 100, 100, 0.3);
+}

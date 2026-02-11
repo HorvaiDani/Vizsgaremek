@@ -1,0 +1,60 @@
+============================================
+  GameHUB – Adatbázis (MySQL) – egyszerűen
+============================================
+
+A projekt adatbázis fájljai ebben a mappában vannak:
+
+  database/
+    schema.sql      – tábla létrehozása (ezt futtatod MySQL-ben)
+    README.md      – részletes lépések (telepítés, parancsok)
+    adatbazis.txt – ez a fájl (rövid összefoglaló)
+
+--------------------------------------------
+1. MI VAN AZ ADATBÁZISBAN?
+--------------------------------------------
+
+  • Egy adatbázis: gamehub
+  • Egy tábla: kedvencek
+
+  Oszlopok:
+    id        – sorszám (automatikus)
+    steam_id  – Steam játék azonosító (pl. 292030)
+    cim       – játék címe (pl. The Witcher 3)
+    mikor     – mikor mentettük (dátum, automatikus)
+
+--------------------------------------------
+2. TÁBLA LÉTREHOZÁSA (parancssor)
+--------------------------------------------
+
+  A projekt mappájából (ahol a package.json van):
+
+    mysql -u root -p < database/schema.sql
+
+  Ha nincs jelszó:
+
+    mysql -u root < database/schema.sql
+
+--------------------------------------------
+3. SZERVER INDÍTÁSA
+--------------------------------------------
+
+  A projekt gyökeréből:
+
+    npm install
+    npm run server
+
+  Ez a 3001-es porton indítja a szervert.
+  A weblap innen tölti ki a kedvenceket.
+
+--------------------------------------------
+4. TESZTELÉS KÖZVETLENÜL SQL-BEN
+--------------------------------------------
+
+  USE gamehub;
+
+  INSERT INTO kedvencek (steam_id, cim) 
+  VALUES ('292030', 'The Witcher 3');
+
+  SELECT * FROM kedvencek;
+
+============================================

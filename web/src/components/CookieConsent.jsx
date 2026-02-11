@@ -76,17 +76,17 @@ const CookieConsent = ({ onConsentChange }) => {
               Cookie-k és személyre szabás
             </h3>
             <p className="cookie-consent-description">
-              A jobb felhasználói élmény érdekében cookie-kat használunk a keresési előzmények 
-              és filmpreferenciák tárolására. Ez lehetővé teszi a személyre szabott filmajánlásokat 
+              A jobb felhasználói élmény érdekében cookie-kat használunk a keresési előzmények
+              és játékpreferenciák tárolására. Ez lehetővé teszi a személyre szabott játékajánlásokat
               és a keresési javaslatokat.
             </p>
             <div className="cookie-consent-details">
               <p><strong>Mit tárolunk:</strong></p>
               <ul>
                 <li>Keresési előzmények</li>
-                <li>Nézett filmek</li>
-                <li>Műfaj preferenciák</li>
-                <li>Film értékelések</li>
+                <li>Megtekintett játékok</li>
+                <li>Műfajpreferenciák</li>
+                <li>Értékelések</li>
               </ul>
             </div>
           </div>

@@ -26,10 +26,10 @@ const Landing = ({ onCTAClick }) => {
   return (
     <section className="landing-hero">
       <div className="landing-inner">
-        <h1 ref={titleRef} className="landing-title">PopcornHUB</h1>
-        <p ref={subtitleRef} className="landing-subtitle">Okos ajánlások, gyönyörű felület, személyre szabott élmény</p>
+        <h1 ref={titleRef} className="landing-title">GameHUB</h1>
+        <p ref={subtitleRef} className="landing-subtitle">Steam játékok, okos ajánlások, személyre szabott élmény</p>
         <div className="landing-actions">
-          <a href="#search" className="landing-cta" onClick={onCTAClick}>Kezdj keresni</a>
+          <a href="#search" className="landing-cta" onClick={onCTAClick}>Játékok böngészése</a>
           <a href="#recommendations" className="landing-secondary">Ajánlások megtekintése</a>
         </div>
         <div className="landing-gradient-orb" />

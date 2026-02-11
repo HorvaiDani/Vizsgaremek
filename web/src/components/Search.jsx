@@ -33,7 +33,7 @@ const Search = ({ onSearch, loading }) => {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)} // Input érték frissítése
-            placeholder="Filmek keresése..."
+            placeholder="Játékok keresése (pl. Witcher, GTA)..."
             className="search-input"
             disabled={loading} // Letiltás betöltés közben
           />
