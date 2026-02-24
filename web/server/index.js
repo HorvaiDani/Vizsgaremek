@@ -1,67 +1,57 @@
 /**
- * GameHUB – egyszerű szerver a kedvencek tárolásához (MySQL)
- * Indítás: npm run server  (a projekt gyökeréből)
+ * GameHUB – extra egyszerű szerver kedvencekhez
+ * Itt most NINCS igazi MySQL kapcsolat, mindent memóriában tárolunk,
+ * hogy biztosan működjön akkor is, ha az adatbázis nincs jól beállítva.
  */
 
-import 'dotenv/config';
 import express from 'express';
-import mysql from 'mysql2/promise';
 import cors from 'cors';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// MySQL kapcsolat – ugyanazok a adatok, mint a schema.sql-nél (root/jelszó nélkül lokálban)
-const db = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'gamehub',
-});
-
-// ----- Egyszerű végpontok -----
+// Nagyon kezdő megoldás: "ál-adatbázis" a memóriában
+let kedvencek = [];
+let kovetkezoId = 1;
 
 // Összes kedvenc listázása
-app.get('/api/kedvencek', async (req, res) => {
-  try {
-    const [rows] = await db.query('SELECT id, steam_id, cim, mikor FROM kedvencek ORDER BY mikor DESC');
-    res.json(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ hiba: 'Nem sikerült betölteni a kedvenceket.' });
-  }
+app.get('/api/kedvencek', (req, res) => {
+  res.json(kedvencek);
 });
 
 // Új kedvenc hozzáadása
-app.post('/api/kedvencek', async (req, res) => {
+app.post('/api/kedvencek', (req, res) => {
   const { steam_id, cim } = req.body;
   if (!steam_id || !cim) {
     return res.status(400).json({ hiba: 'Kell steam_id és cim.' });
   }
-  try {
-    await db.query('INSERT INTO kedvencek (steam_id, cim) VALUES (?, ?)', [String(steam_id), String(cim)]);
-    res.status(201).json({ ok: true, uzenet: 'Kedvenc mentve.' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ hiba: 'Nem sikerült menteni.' });
-  }
+
+  const uj = {
+    id: kovetkezoId++,
+    steam_id: String(steam_id),
+    cim: String(cim),
+    mikor: new Date().toISOString(),
+  };
+
+  kedvencek.push(uj);
+  res.status(201).json({ ok: true, uzenet: 'Kedvenc mentve.', adat: uj });
 });
 
 // Kedvenc törlése id alapján
-app.delete('/api/kedvencek/:id', async (req, res) => {
+app.delete('/api/kedvencek/:id', (req, res) => {
   const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ hiba: 'Kell egy id.' });
-  try {
-    const [result] = await db.query('DELETE FROM kedvencek WHERE id = ?', [id]);
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ hiba: 'Nincs ilyen kedvenc.' });
-    }
-    res.json({ ok: true, uzenet: 'Törölve.' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ hiba: 'Nem sikerült törölni.' });
+  if (!id) {
+    return res.status(400).json({ hiba: 'Kell egy id.' });
   }
+
+  const index = kedvencek.findIndex((k) => k.id === id);
+  if (index === -1) {
+    return res.status(404).json({ hiba: 'Nincs ilyen kedvenc.' });
+  }
+
+  kedvencek.splice(index, 1);
+  res.json({ ok: true, uzenet: 'Törölve.' });
 });
 
 const PORT = process.env.PORT || 3001;

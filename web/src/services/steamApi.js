@@ -88,6 +88,9 @@ export const transformStoreData = (data, appId) => {
   const rating = data.metacritic?.score
     ? Number(data.metacritic.score) / 10
     : 0;
+  const priceOverview = data.price_overview;
+  const price = priceOverview ? Number(priceOverview.final) / 100 : 0;
+  const isFree = Boolean(data.is_free) || price === 0;
   return {
     id: String(appId),
     appId: Number(appId),
@@ -95,6 +98,8 @@ export const transformStoreData = (data, appId) => {
     year,
     rating,
     genre,
+    price,
+    isFree,
     poster: data.header_image || data.small_image || null,
     plot: data.short_description || '',
     genres: data.genres?.map((g) => g.description) || [],

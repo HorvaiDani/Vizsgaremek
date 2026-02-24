@@ -10,7 +10,7 @@ import './GameDetail.css';
 
 const DESCRIPTION_PREVIEW_LENGTH = 400;
 
-const GameDetail = () => {
+const GameDetail = ({ onFavoriteAdded }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [game, setGame] = useState(null);
@@ -179,6 +179,9 @@ const GameDetail = () => {
                 try {
                   await addKedvenc(game.id, game.title);
                   setKedvencStatus('ok');
+                  if (onFavoriteAdded) {
+                    onFavoriteAdded();
+                  }
                 } catch {
                   setKedvencStatus('hiba');
                 }
