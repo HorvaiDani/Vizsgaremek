@@ -31,6 +31,12 @@
   color: rgba(156, 163, 175, 0.95);
 }
 
+.achievements-meta {
+  margin: 0.25rem 0 0.35rem;
+  font-size: 0.85rem;
+  color: rgba(209, 213, 219, 0.92);
+}
+
 .achievements-list {
   list-style: none;
   padding: 0;
@@ -65,14 +71,41 @@
   flex-direction: column;
 }
 
+.achievement-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .achievement-title {
   font-size: 0.9rem;
   font-weight: 600;
 }
 
+.achievement-progress-pill {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: rgba(226, 232, 240, 0.95);
+  white-space: nowrap;
+}
+
 .achievement-desc {
   font-size: 0.8rem;
   color: rgba(156, 163, 175, 0.95);
+}
+
+.achievement-reward {
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.achievement-item.locked {
+  opacity: 0.72;
+  filter: grayscale(0.25);
 }
 
 .achievement-toast {
@@ -98,6 +131,11 @@
 
 .achievement-toast-desc {
   font-size: 0.8rem;
+}
+
+.achievement-toast-reward {
+  font-size: 0.78rem;
+  opacity: 0.95;
 }
 
 @media (max-width: 768px) {

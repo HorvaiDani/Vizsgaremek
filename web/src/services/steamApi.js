@@ -7,6 +7,64 @@ const STORE_ORIGIN = 'https://store.steampowered.com/api';
 const WEB_API_BASE = 'https://api.steampowered.com';
 const LANG = 'hungarian';
 
+const ADULT_KEYWORDS = [
+  'hentai',
+  'erotic',
+  'sexual',
+  'sex',
+  'nudity',
+  'nude',
+  'porn',
+  'incest',
+  'lust',
+  'goddess',
+];
+
+function normalizeText(v) {
+  return String(v || '').toLowerCase();
+}
+
+function isAdultContent(data) {
+  const name = normalizeText(data?.name);
+  const shortDesc = normalizeText(data?.short_description);
+  const genres = Array.isArray(data?.genres) ? data.genres.map((g) => normalizeText(g?.description || g)) : [];
+
+  const haystack = [name, shortDesc, ...genres].join(' ');
+  const keywordHit = ADULT_KEYWORDS.some((k) => haystack.includes(k));
+  return keywordHit;
+}
+
+function censorWord(word) {
+  const w = String(word || '');
+  const letters = w.replace(/[^A-Za-zÀ-ÿ0-9]/g, '');
+  if (letters.length <= 2) return w.length > 0 ? w[0] + '*' : w;
+  const keep = 2;
+  const masked = letters.slice(0, keep) + '*'.repeat(Math.max(letters.length - keep, 1));
+  // preserve original non-alnum chars by simple replace of letters chunk
+  return w.replace(letters, masked);
+}
+
+function censorTitle(title) {
+  const t = String(title || '');
+  // Special-case: match user example
+  if (normalizeText(t).includes('lust goddess')) return 'Lust G*****';
+  return t
+    .split(/\s+/)
+    .map((w) => censorWord(w))
+    .join(' ');
+}
+
+function applyCensorship(game, data) {
+  if (!isAdultContent(data)) return game;
+  return {
+    ...game,
+    title: censorTitle(game.title),
+    plot: 'Cenzúrázott tartalom (18+).',
+    poster: null,
+    isCensored: true,
+  };
+}
+
 // Production-ben a CORS proxy miatt a path-et az origin után kell fűzni
 function storeUrl(path) {
   if (import.meta.env.DEV) return `/steam-api${path}`;
@@ -47,9 +105,13 @@ export const getGameDetails = async (appIds) => {
 };
 
 // Játékok keresése név alapján (Steam Store Search – nem hivatalos, de működik)
-export const searchGames = async (query) => {
+export const searchGames = async (query, options = {}) => {
+  const limit = Math.max(1, Math.min(Number(options.limit) || 36, 50));
+  const start = Math.max(0, Number(options.start) || 0);
   try {
-    const url = storeUrl(`/storesearch/?term=${encodeURIComponent(query)}&l=${LANG}&cc=HU`);
+    const url = storeUrl(
+      `/storesearch/?term=${encodeURIComponent(query)}&l=${LANG}&cc=HU&start=${start}&count=${limit}`
+    );
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
@@ -59,20 +121,28 @@ export const searchGames = async (query) => {
       (item) => item.type === 'game' || item.type === 'app' || !item.type
     );
     if (games.length === 0) return [];
-    const appIds = games.slice(0, 12).map((g) => g.id);
-    // Egyenkénti kérések – a Steam 400-at ad több appid esetén
-    const results = await Promise.allSettled(appIds.map((id) => getGameDetails(id)));
+    const appIds = games.slice(0, limit).map((g) => g.id);
+
+    const concurrency = 8;
     const transformed = [];
-    results.forEach((result, index) => {
-      if (result.status !== 'fulfilled') return;
-      const id = appIds[index];
-      const details = result.value;
-      const raw = details?.[id];
-      if (raw?.success && raw?.data) {
-        const game = transformStoreData(raw.data, id);
-        if (game.poster) transformed.push(game);
+    let idx = 0;
+    const workers = Array.from({ length: Math.min(concurrency, appIds.length) }).map(async () => {
+      while (idx < appIds.length) {
+        const currentIndex = idx++;
+        const id = appIds[currentIndex];
+        try {
+          const details = await getGameDetails(id);
+          const raw = details?.[id];
+          if (raw?.success && raw?.data) {
+            const game = transformStoreData(raw.data, id);
+            if (game.poster || game.isCensored) transformed.push(game);
+          }
+        } catch {
+          // ignore
+        }
       }
     });
+    await Promise.all(workers);
     return transformed;
   } catch (error) {
     console.error('Hiba a játékok keresésekor:', error);
@@ -91,7 +161,7 @@ export const transformStoreData = (data, appId) => {
   const priceOverview = data.price_overview;
   const price = priceOverview ? Number(priceOverview.final) / 100 : 0;
   const isFree = Boolean(data.is_free) || price === 0;
-  return {
+  const base = {
     id: String(appId),
     appId: Number(appId),
     title: data.name || 'Ismeretlen',
@@ -106,6 +176,7 @@ export const transformStoreData = (data, appId) => {
     release_date: releaseDate,
     steamUrl: `https://store.steampowered.com/app/${appId}`,
   };
+  return applyCensorship(base, data);
 };
 
 // Egy játék teljes adatai a részletoldalhoz (leírás, képek, értékelés)
@@ -120,11 +191,12 @@ export const getGameDetail = async (appId) => {
     thumb: s.path_thumbnail || s.path_full,
     full: s.path_full,
   })).filter((s) => s.full);
+  const censored = base.isCensored || isAdultContent(data);
   return {
     ...base,
-    description: data.detailed_description || data.short_description || base.plot,
-    background: data.background || base.poster,
-    screenshots,
+    description: censored ? 'Cenzúrázott tartalom (18+).' : (data.detailed_description || data.short_description || base.plot),
+    background: censored ? null : (data.background || base.poster),
+    screenshots: censored ? [] : screenshots,
     metacriticUrl: data.metacritic?.url || null,
   };
 };
@@ -147,7 +219,7 @@ export const transformSearchItem = (item) => {
 // Népszerű játékok lekérése – egyenkénti kérések (a Steam 400-at ad több appid esetén)
 export const getPopularGames = async () => {
   try {
-    const ids = POPULAR_GAME_IDS.slice(0, 12);
+    const ids = POPULAR_GAME_IDS;
     const results = await Promise.allSettled(ids.map((id) => getGameDetails(id)));
     const games = [];
     results.forEach((result, index) => {
@@ -157,7 +229,7 @@ export const getPopularGames = async () => {
       const raw = details?.[id];
       if (raw?.success && raw?.data) {
         const game = transformStoreData(raw.data, id);
-        if (game.poster) games.push(game);
+        if (game.poster || game.isCensored) games.push(game);
       }
     });
     if (games.length === 0) {

@@ -257,6 +257,116 @@
   cursor: default;
 }
 
+.game-detail-hint {
+  width: 100%;
+  color: rgba(203, 213, 225, 0.92);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.game-detail-muted {
+  color: rgba(203, 213, 225, 0.88);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.comments-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.comment-item {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+}
+
+.comment-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.comment-user {
+  color: #fff;
+}
+
+.comment-date {
+  color: rgba(203, 213, 225, 0.8);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.comment-text {
+  color: rgba(229, 231, 235, 0.92);
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+.comment-form {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.comment-textarea {
+  width: 100%;
+  resize: vertical;
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  outline: none;
+}
+
+.comment-textarea:focus {
+  border-color: rgba(102, 192, 244, 0.6);
+  box-shadow: 0 0 0 3px rgba(102, 192, 244, 0.15);
+}
+
+.comment-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.comment-counter {
+  color: rgba(203, 213, 225, 0.85);
+  font-size: 0.85rem;
+}
+
+.comment-submit {
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(102, 192, 244, 0.5);
+  background: rgba(102, 192, 244, 0.15);
+  color: #e5f3ff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.comment-submit:hover:not(:disabled) {
+  background: rgba(102, 192, 244, 0.22);
+  border-color: rgba(102, 192, 244, 0.85);
+  transform: translateY(-1px);
+}
+
+.comment-submit:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
 @media (max-width: 768px) {
   .game-detail-header {
     min-height: 240px;

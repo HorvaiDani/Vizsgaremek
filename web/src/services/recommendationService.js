@@ -3,26 +3,31 @@
 
 import {
   searchGames,
-  getGameDetails,
-  transformStoreData,
 } from './steamApi';
 import { userBehavior, recommendationEngine, personalizedSearch } from './cookieService';
 
 const getDirectSimilarGames = async (searchTerm) => {
   try {
-    const searchResults = await searchGames(searchTerm);
+    const searchResults = await searchGames(searchTerm, { limit: 20 });
     if (!Array.isArray(searchResults) || searchResults.length === 0) return [];
 
-    const first = searchResults[0];
-    const primaryGenre = first.genre || first.genres?.[0] || 'Action';
-    const genreSearchResults = await searchGames(primaryGenre);
-    if (!Array.isArray(genreSearchResults) || genreSearchResults.length === 0)
-      return [];
+    const seedGenres = searchResults
+      .slice(0, 3)
+      .flatMap((g) => [g.genre, ...(g.genres || [])])
+      .filter(Boolean)
+      .map((g) => String(g));
 
-    const similar = genreSearchResults
-      .filter((g) => g.id !== first.id)
-      .slice(0, 8);
-    return similar;
+    const uniqGenres = [...new Set(seedGenres)].slice(0, 3);
+    if (uniqGenres.length === 0) return [];
+
+    const buckets = await Promise.allSettled(uniqGenres.map((genre) => searchGames(genre, { limit: 20 })));
+    const combined = buckets
+      .filter((r) => r.status === 'fulfilled')
+      .flatMap((r) => r.value || []);
+
+    const seedIds = new Set(searchResults.map((g) => g.id));
+    const unique = combined.filter((g, i, arr) => arr.findIndex((x) => x.id === g.id) === i);
+    return unique.filter((g) => !seedIds.has(g.id)).slice(0, 18);
   } catch (error) {
     console.error('Hasonló játékok lekérése sikertelen:', error);
     return [];
@@ -37,7 +42,7 @@ export const recommendationService = {
 
       const gamePromises = recommendations.map(async (term) => {
         try {
-          const results = await searchGames(term);
+          const results = await searchGames(term, { limit: 10 });
           if (Array.isArray(results) && results.length > 0) return results[0];
           return null;
         } catch {
@@ -49,8 +54,8 @@ export const recommendationService = {
       const games = settled
         .filter((r) => r.status === 'fulfilled' && r.value != null)
         .map((r) => r.value)
-        .filter((g) => g.poster != null)
-        .slice(0, 12);
+        .filter((g) => g.poster != null || g.isCensored)
+        .slice(0, 18);
       return games;
     } catch (error) {
       console.error('Személyre szabott ajánlások lekérése sikertelen:', error);
@@ -60,14 +65,13 @@ export const recommendationService = {
 
   getSimilarMoviesFromSearch: async (searchTerm) => {
     try {
-      userBehavior.clearUserData();
       const direct = await getDirectSimilarGames(searchTerm);
-      if (direct.length >= 4) return direct.slice(0, 8);
+      if (direct.length >= 4) return direct.slice(0, 18);
 
       const altSearches = [searchTerm, searchTerm + ' game', searchTerm + ' játék'];
       for (const alt of altSearches) {
         const altGames = await getDirectSimilarGames(alt);
-        if (altGames.length >= 4) return altGames.slice(0, 8);
+        if (altGames.length >= 4) return altGames.slice(0, 18);
       }
       return [];
     } catch (error) {
@@ -89,11 +93,13 @@ export const recommendationService = {
       const all = [];
       for (const genre of topGenres) {
         try {
-          const results = await searchGames(genre);
-          if (Array.isArray(results)) all.push(...results.slice(0, 2));
-        } catch {}
+          const results = await searchGames(genre, { limit: 15 });
+          if (Array.isArray(results)) all.push(...results.slice(0, 5));
+        } catch {
+          // ignore
+        }
       }
-      return all.filter((g) => g.poster != null).slice(0, 10);
+      return all.filter((g) => g.poster != null || g.isCensored).slice(0, 18);
     } catch (error) {
       console.error('Műfaj alapú ajánlások sikertelen:', error);
       return [];
@@ -122,11 +128,13 @@ export const recommendationService = {
       const all = [];
       for (const genre of top) {
         try {
-          const results = await searchGames(genre);
-          if (Array.isArray(results)) all.push(...results.slice(0, 3));
-        } catch {}
+          const results = await searchGames(genre, { limit: 15 });
+          if (Array.isArray(results)) all.push(...results.slice(0, 6));
+        } catch {
+          // ignore
+        }
       }
-      return all.filter((g) => g.poster != null).slice(0, 8);
+      return all.filter((g) => g.poster != null || g.isCensored).slice(0, 18);
     } catch (error) {
       console.error('Nézett játékokhoz hasonló sikertelen:', error);
       return [];
@@ -145,7 +153,7 @@ export const recommendationService = {
       const unique = combined.filter(
         (game, i, arr) => arr.findIndex((g) => g.id === game.id) === i
       );
-      return unique.slice(0, 15);
+      return unique.slice(0, 24);
     } catch (error) {
       console.error('Összes ajánlás lekérése sikertelen:', error);
       return [];

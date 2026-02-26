@@ -14,7 +14,9 @@ const Header = ({ user, onLogout }) => {
       const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
       const initial = stored || (prefersDark ? 'dark' : 'light');
       setTheme(initial);
-    } catch (_) {}
+    } catch {
+      // ignore
+    }
   }, []);
 
   useEffect(() => {
@@ -23,7 +25,9 @@ const Header = ({ user, onLogout }) => {
       root.classList.remove('theme-dark', 'theme-light');
       root.classList.add(theme === 'dark' ? 'theme-dark' : 'theme-light');
       localStorage.setItem('theme', theme);
-    } catch (_) {}
+    } catch {
+      // ignore
+    }
   }, [theme]);
 
   const toggleTheme = () => {
@@ -33,16 +37,6 @@ const Header = ({ user, onLogout }) => {
   return (
     <header className="header">
       <div className="header-content">
-        {/* Menü gomb - bal oldalon */}
-        <button className="menu-button" aria-label="Menu">
-          {/* Hamburger menü ikon SVG */}
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
-        </button>
-        
         {/* Főcím és logó - középen */}
         <h1 className="logo">
           <Link to="/" style={{ color: 'inherit' }}>🎮 GameHUB</Link>

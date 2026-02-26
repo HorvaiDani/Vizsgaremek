@@ -4,17 +4,14 @@ import './Login.css';
 const Login = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
 
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) {
-      setAvatarFile(null);
       setAvatarPreview(null);
       return;
     }
-    setAvatarFile(file);
     const url = URL.createObjectURL(file);
     setAvatarPreview(url);
   };

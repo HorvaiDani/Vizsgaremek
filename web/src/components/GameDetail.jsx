@@ -4,13 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getGameDetail } from '../services/steamApi';
 import { addKedvenc } from '../services/favoritesApi';
+import { getComments, addComment } from '../services/commentsApi';
 import Loading from './Loading';
 import Error from './Error';
 import './GameDetail.css';
 
 const DESCRIPTION_PREVIEW_LENGTH = 400;
 
-const GameDetail = ({ onFavoriteAdded }) => {
+const GameDetail = ({ user, onFavoriteAdded, onCommentAdded }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [game, setGame] = useState(null);
@@ -19,6 +20,11 @@ const GameDetail = ({ onFavoriteAdded }) => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [kedvencStatus, setKedvencStatus] = useState(null); // null | 'loading' | 'ok' | 'hiba'
+  const [comments, setComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState(null);
+  const [commentText, setCommentText] = useState('');
+  const [commentStatus, setCommentStatus] = useState(null); // null | 'loading' | 'ok' | 'hiba'
 
   useEffect(() => {
     let cancelled = false;
@@ -52,9 +58,34 @@ const GameDetail = ({ onFavoriteAdded }) => {
     return () => { cancelled = true; };
   }, [id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadComments = async () => {
+      if (!id) return;
+      try {
+        setCommentsLoading(true);
+        setCommentsError(null);
+        const data = await getComments(id);
+        if (cancelled) return;
+        setComments(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (!cancelled) {
+          setCommentsError(e?.message || 'Nem sikerült betölteni a kommenteket.');
+        }
+      } finally {
+        if (!cancelled) setCommentsLoading(false);
+      }
+    };
+    loadComments();
+    return () => { cancelled = true; };
+  }, [id]);
+
   const formatRating = (r) => {
     if (!r || r === 0) return '–';
-    return (r * 10).toFixed(0);
+    return Number(r).toLocaleString('hu-HU', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
   };
 
   const stripHtml = (html) => {
@@ -62,6 +93,12 @@ const GameDetail = ({ onFavoriteAdded }) => {
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
     return tmp.textContent || tmp.innerText || '';
+  };
+
+  const formatDateTime = (str) => {
+    if (!str) return '';
+    const d = new Date(str);
+    return d.toLocaleString('hu-HU');
   };
 
   if (loading) {
@@ -121,7 +158,7 @@ const GameDetail = ({ onFavoriteAdded }) => {
               Ár:{' '}
               {game.isFree
                 ? 'Ingyenes'
-                : `${game.price.toLocaleString('hu-HU')} Ft`}
+                : `${game.price.toLocaleString('hu-HU')} €`}
             </div>
           )}
         </div>
@@ -189,11 +226,15 @@ const GameDetail = ({ onFavoriteAdded }) => {
             <button
               type="button"
               className="game-detail-favorite-btn"
-              disabled={kedvencStatus === 'loading' || kedvencStatus === 'ok'}
+              disabled={!user?.name || kedvencStatus === 'loading' || kedvencStatus === 'ok'}
               onClick={async () => {
+                if (!user?.name) {
+                  setKedvencStatus('hiba');
+                  return;
+                }
                 setKedvencStatus('loading');
                 try {
-                  await addKedvenc(game.id, game.title);
+                  await addKedvenc(game.id, game.title, user?.name);
                   setKedvencStatus('ok');
                   if (onFavoriteAdded) {
                     onFavoriteAdded();
@@ -205,7 +246,85 @@ const GameDetail = ({ onFavoriteAdded }) => {
             >
               {kedvencStatus === 'ok' ? '✓ Kedvencekhez adva' : kedvencStatus === 'loading' ? 'Mentés…' : kedvencStatus === 'hiba' ? 'Hiba, próbáld újra' : '❤ Hozzáadás a kedvencekhez'}
             </button>
+            {!user?.name && (
+              <div className="game-detail-hint">
+                A kedvencekhez adáshoz bejelentkezés szükséges.
+              </div>
+            )}
           </div>
+        </section>
+
+        <section className="game-detail-section game-detail-comments">
+          <h2>Kommentek</h2>
+
+          {commentsLoading ? (
+            <p className="game-detail-muted">Kommentek betöltése…</p>
+          ) : commentsError ? (
+            <p className="game-detail-muted">{commentsError}</p>
+          ) : comments.length === 0 ? (
+            <p className="game-detail-muted">Még nincs komment. Te lehetsz az első!</p>
+          ) : (
+            <ul className="comments-list">
+              {comments.map((c) => (
+                <li key={c.id} className="comment-item">
+                  <div className="comment-head">
+                    <strong className="comment-user">{c.user}</strong>
+                    <span className="comment-date">{formatDateTime(c.mikor)}</span>
+                  </div>
+                  <div className="comment-text">{c.text}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {user?.name ? (
+            <form
+              className="comment-form"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!commentText.trim()) return;
+                setCommentStatus('loading');
+                try {
+                  await addComment({ steamId: id, text: commentText, userName: user.name });
+                  setCommentText('');
+                  setCommentStatus('ok');
+                  const data = await getComments(id);
+                  setComments(Array.isArray(data) ? data : []);
+                  onCommentAdded?.();
+                } catch (err) {
+                  console.error(err);
+                  setCommentStatus('hiba');
+                }
+              }}
+            >
+              <textarea
+                className="comment-textarea"
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder="Írj egy kommentet…"
+                maxLength={500}
+                rows={3}
+                disabled={commentStatus === 'loading'}
+              />
+              <div className="comment-actions">
+                <span className="comment-counter">{commentText.trim().length}/500</span>
+                <button
+                  type="submit"
+                  className="comment-submit"
+                  disabled={commentStatus === 'loading' || !commentText.trim()}
+                >
+                  {commentStatus === 'loading' ? 'Küldés…' : 'Komment küldése'}
+                </button>
+              </div>
+              {commentStatus === 'hiba' && (
+                <p className="game-detail-muted">Nem sikerült elküldeni. Próbáld újra.</p>
+              )}
+            </form>
+          ) : (
+            <p className="game-detail-muted">
+              Komment írásához bejelentkezés szükséges.
+            </p>
+          )}
         </section>
       </div>
     </div>

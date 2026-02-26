@@ -30,7 +30,6 @@
   letter-spacing: -0.5px;
 }
 
-.menu-button,
 .login-button {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -50,14 +49,12 @@
   gap: 0.75rem;
 }
 
-.menu-button:hover,
 .login-button:hover {
   background: rgba(255, 255, 255, 0.2);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.menu-button:active,
 .login-button:active {
   transform: translateY(0);
 }
@@ -84,14 +81,12 @@
     gap: 0.5rem;
   }
   
-  .menu-button,
   .login-button {
     padding: 0.5rem;
     min-width: 44px;
     min-height: 44px;
   }
   
-  .menu-button svg,
   .login-button svg {
     width: 20px;
     height: 20px;
@@ -108,12 +103,10 @@
     gap: 0.25rem;
   }
   
-  .menu-button,
   .login-button {
     padding: 0.4rem;
   }
   
-  .menu-button svg,
   .login-button svg {
     width: 18px;
     height: 18px;
@@ -130,13 +123,11 @@
     letter-spacing: -0.25px;
   }
   
-  .menu-button,
   .login-button {
     padding: 0.35rem;
     border-radius: 8px;
   }
   
-  .menu-button svg,
   .login-button svg {
     width: 16px;
     height: 16px;
@@ -153,14 +144,12 @@
     font-size: 1rem;
   }
   
-  .menu-button,
   .login-button {
     padding: 0.3rem;
     min-width: 40px;
     min-height: 40px;
   }
   
-  .menu-button svg,
   .login-button svg {
     width: 14px;
     height: 14px;

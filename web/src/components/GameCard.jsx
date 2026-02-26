@@ -6,7 +6,7 @@ import './GameCard.css';
 
 const GameCard = ({ game, onClick }) => {
   const [imageError, setImageError] = useState(false);
-  const { title, year, rating, poster, genre, plot, steamUrl, price, isFree } = game;
+  const { title, year, rating, poster, genre, plot, steamUrl, price, isFree, isCensored } = game;
 
   const handleImageError = () => setImageError(true);
 
@@ -17,12 +17,15 @@ const GameCard = ({ game, onClick }) => {
     if (!price && price !== 0) {
       return 'Ár nem elérhető';
     }
-    return `${price.toLocaleString('hu-HU')} Ft`;
+    return `${price.toLocaleString('hu-HU')} €`;
   };
 
   const formatRating = (r) => {
     if (!r || r === 0) return '–';
-    return (r * 10).toFixed(0);
+    return Number(r).toLocaleString('hu-HU', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
   };
 
   const handleClick = () => {
@@ -32,7 +35,7 @@ const GameCard = ({ game, onClick }) => {
 
   return (
     <div className="game-card" onClick={handleClick}>
-      <div className="game-poster">
+      <div className={`game-poster ${isCensored ? 'game-poster--censored' : ''}`}>
         {!imageError && poster ? (
           <img
             src={poster}

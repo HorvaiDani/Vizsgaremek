@@ -29,8 +29,32 @@ const Landing = ({ onCTAClick }) => {
         <h1 ref={titleRef} className="landing-title">GameHUB</h1>
         <p ref={subtitleRef} className="landing-subtitle">Steam játékok, okos ajánlások, személyre szabott élmény</p>
         <div className="landing-actions">
-          <a href="#search" className="landing-cta" onClick={onCTAClick}>Játékok böngészése</a>
-          <a href="#recommendations" className="landing-secondary">Ajánlások megtekintése</a>
+          <a
+            href="/games"
+            className="landing-cta"
+            onClick={(e) => {
+              e.preventDefault();
+              onCTAClick?.();
+            }}
+          >
+            Játékok böngészése
+          </a>
+          <a
+            href="/games#recommendations"
+            className="landing-secondary"
+            onClick={(e) => {
+              e.preventDefault();
+              onCTAClick?.();
+              window.setTimeout(() => {
+                const el = document.querySelector('.recommendations-section');
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }, 400);
+            }}
+          >
+            Ajánlások megtekintése
+          </a>
         </div>
         <div className="landing-gradient-orb" />
       </div>
