@@ -6,9 +6,19 @@ import './GameCard.css';
 
 const GameCard = ({ game, onClick }) => {
   const [imageError, setImageError] = useState(false);
-  const { title, year, rating, poster, genre, plot, steamUrl } = game;
+  const { title, year, rating, poster, genre, plot, steamUrl, price, isFree } = game;
 
   const handleImageError = () => setImageError(true);
+
+  const formatPrice = () => {
+    if (isFree) {
+      return 'Ingyenes';
+    }
+    if (!price && price !== 0) {
+      return 'Ár nem elérhető';
+    }
+    return `${price.toLocaleString('hu-HU')} Ft`;
+  };
 
   const formatRating = (r) => {
     if (!r || r === 0) return '–';
@@ -41,11 +51,6 @@ const GameCard = ({ game, onClick }) => {
             <span className="rating-star">⭐</span>
             <span className="rating-value">{formatRating(rating)}</span>
           </div>
-          <div className="play-button">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          </div>
         </div>
       </div>
       <div className="game-info">
@@ -58,6 +63,9 @@ const GameCard = ({ game, onClick }) => {
               <span className="game-genre">{genre}</span>
             </>
           )}
+        </div>
+        <div className="game-price">
+          {formatPrice()}
         </div>
         {plot && <p className="game-plot">{plot}</p>}
       </div>

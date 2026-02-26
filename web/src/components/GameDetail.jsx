@@ -116,6 +116,14 @@ const GameDetail = ({ onFavoriteAdded }) => {
             <span className="game-detail-rating-label">Értékelés</span>
             <span className="game-detail-rating-value">{formatRating(game.rating)}</span>
           </div>
+          {typeof game.price === 'number' && (
+            <div className="game-detail-price">
+              Ár:{' '}
+              {game.isFree
+                ? 'Ingyenes'
+                : `${game.price.toLocaleString('hu-HU')} Ft`}
+            </div>
+          )}
         </div>
       </header>
 
@@ -169,6 +177,14 @@ const GameDetail = ({ onFavoriteAdded }) => {
               className="game-detail-steam-btn"
             >
               Megnyitás a Steamen
+            </a>
+            <a
+              href={`https://www.g2a.com/search?query=${encodeURIComponent(game.title)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="game-detail-g2a-btn"
+            >
+              Keresés G2A-n
             </a>
             <button
               type="button"

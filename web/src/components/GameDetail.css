@@ -93,6 +93,13 @@
   font-size: 1.1rem;
 }
 
+.game-detail-price {
+  margin-top: 0.5rem;
+  font-size: 1rem;
+  color: #fbbf24;
+  font-weight: 600;
+}
+
 .game-detail-body {
   max-width: 900px;
   margin: 0 auto;
@@ -208,6 +215,25 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.game-detail-g2a-btn {
+  display: inline-block;
+  background: linear-gradient(135deg, #111827, #1f2937);
+  color: #f9fafb;
+  padding: 0.75rem 1.25rem;
+  border-radius: 4px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid rgba(156, 163, 175, 0.7);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.game-detail-g2a-btn:hover {
+  background: #111827;
+  border-color: #fbbf24;
+  transform: translateY(-1px);
 }
 
 .game-detail-favorite-btn {

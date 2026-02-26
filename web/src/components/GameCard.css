@@ -106,22 +106,11 @@
   font-size: 0.7rem;
 }
 
-.play-button {
-  background: rgba(255, 255, 255, 0.9);
-  color: #000;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
-}
-
-.play-button:hover {
-  background: #fff;
-  transform: scale(1.1);
+.game-price {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #fbbf24;
+  font-weight: 600;
 }
 
 .game-info {
@@ -201,10 +190,6 @@
     top: 8px;
     right: 8px;
   }
-  .play-button {
-    width: 44px;
-    height: 44px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -229,10 +214,6 @@
     font-size: 0.65rem;
     top: 6px;
     right: 6px;
-  }
-  .play-button {
-    width: 40px;
-    height: 40px;
   }
 }
 
