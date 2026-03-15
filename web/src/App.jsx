@@ -18,6 +18,8 @@ import { getPopularGames, searchGames } from './services/steamApi';
 import { userBehavior } from './services/cookieService';
 import Login from './components/Login';
 import Achievements from './components/Achievements';
+import { getUserAchievements, addUserAchievement, getUserStats } from './services/achievementsApi';
+import { trackSearch, trackOpened } from './services/trackingApi';
 import './App.css';
 
 const ACHIEVEMENT_CATALOG = [
@@ -228,13 +230,25 @@ function App() {
 
   const unlockAchievement = (candidate) => {
     if (!candidate?.id) return;
-    setAchievements((prev) => {
-      if (prev.some((a) => a.id === candidate.id)) return prev;
-      return [...prev, candidate];
-    });
+    // If already unlocked locally, do nothing
+    if (achievements.some((a) => a.id === candidate.id)) return;
+
+    // Add locally, show toast and optimistically add XP; server will reconcile
+    setAchievements((prev) => [...prev, candidate]);
     setLastUnlocked(candidate);
     if (typeof candidate.points === 'number') {
       setXp((prev) => prev + candidate.points);
+    }
+
+    // Persist unlocked achievement on the server (best-effort)
+    if (user?.name) {
+      addUserAchievement(candidate.id, user.name).then((res) => {
+        if (res && res.stats && typeof res.stats.xp === 'number') {
+          setXp(Number(res.stats.xp) || 0);
+        }
+      }).catch(() => {
+        // ignore failures for now
+      });
     }
   };
 
@@ -247,6 +261,13 @@ function App() {
       unlockAchievement(ACHIEVEMENT_CATALOG.find((a) => a.id === 'xp_200'));
     }
   }, [xp, user]);
+
+  // Clear the lastUnlocked toast after shown once (6s)
+  useEffect(() => {
+    if (!lastUnlocked) return;
+    const timer = setTimeout(() => setLastUnlocked(null), 6000);
+    return () => clearTimeout(timer);
+  }, [lastUnlocked]);
 
   useEffect(() => {
     const consent = userBehavior.hasCookieConsent();
@@ -312,6 +333,9 @@ function App() {
       }
 
       if (processedResults.length > 0) {
+        if (user?.name) {
+          trackSearch(user.name, query).catch(() => {});
+        }
         setGames(processedResults);
 
         // Achievement számláló csak bejelentkezett felhasználónál
@@ -395,6 +419,9 @@ function App() {
     }
 
     if (user) {
+      // persist opened game and genre preference server-side
+      trackOpened(user.name, { steam_id: game.id, title: game.title, genre: game.genre }).catch(() => {});
+
       const nextOpened = openedCount + 1;
       setOpenedCount(nextOpened);
 
@@ -475,14 +502,40 @@ function App() {
     setAchievements([]);
     setLastUnlocked(null);
     setXp(0);
-    unlockAchievement({
-      id: 'login_1',
-      title: 'Üdv a GameHUB-ban!',
-      description: 'Bejelentkeztél és létrehoztad a profilod.',
-      points: 10,
-      reward: 'Profil-keret: Kezdő',
-    });
     navigate('/games');
+
+    (async () => {
+      try {
+        const stats = await getUserStats(userData.name).catch(() => null);
+        if (stats) {
+          setSearchCount(Number(stats.search_count) || 0);
+          setOpenedCount(Number(stats.opened_count) || 0);
+          setFavoriteCount(Number(stats.favorite_count) || 0);
+          setCommentCount(Number(stats.comment_count) || 0);
+          setXp(Number(stats.xp) || 0);
+        }
+
+        const list = await getUserAchievements(userData.name).catch(() => []);
+        setAchievements(Array.isArray(list) ? list.map((a) => ({ id: a.id, title: a.title, description: a.description, points: a.points })) : []);
+
+        // Ensure login achievement is stored
+        try {
+          const saved = await addUserAchievement('login_1', userData.name).catch(() => null);
+          if (saved && saved.stats && typeof saved.stats.xp === 'number') {
+            setXp(Number(saved.stats.xp) || 0);
+          }
+          // refresh achievements
+          const refreshed = await getUserAchievements(userData.name).catch(() => []);
+          setAchievements(Array.isArray(refreshed) ? refreshed.map((a) => ({ id: a.id, title: a.title, description: a.description, points: a.points })) : []);
+        } catch (e) {
+          // ignore
+        }
+      } catch (err) {
+        // ignore errors
+      }
+    })();
+    // expose current user for recommendation service fallback
+    window.__CURRENT_USER_NAME__ = userData.name;
   };
 
   const handleLogout = () => {
@@ -494,6 +547,7 @@ function App() {
     setAchievements([]);
     setLastUnlocked(null);
     setXp(0);
+    window.__CURRENT_USER_NAME__ = '';
   };
 
   const handleFavoriteAdded = () => {
@@ -674,19 +728,21 @@ function App() {
                   filters={filters}
                   onFiltersChange={handleFiltersChange}
                 />
-                {user && (
-                  <Achievements
-                    catalog={ACHIEVEMENT_CATALOG}
-                    achievements={achievements}
-                    searchCount={searchCount}
-                    favoriteCount={favoriteCount}
-                    openedCount={openedCount}
-                    commentCount={commentCount}
-                    xp={xp}
-                    rank={rank}
-                    isLoggedIn={!!user}
-                    lastUnlocked={lastUnlocked}
-                  />
+                {user && lastUnlocked && (
+                  <div className="achievement-inline-toast">
+                    <div className="achievement-toast">
+                      <span className="achievement-toast-label">Új achievement!</span>
+                      <strong>{lastUnlocked.title}</strong>
+                      <span className="achievement-toast-desc">{lastUnlocked.description}</span>
+                      {(typeof lastUnlocked.points === 'number' || lastUnlocked.reward) && (
+                        <span className="achievement-toast-reward">
+                          {typeof lastUnlocked.points === 'number' ? `+${lastUnlocked.points} XP` : null}
+                          {typeof lastUnlocked.points === 'number' && lastUnlocked.reward ? ' • ' : null}
+                          {lastUnlocked.reward || null}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 )}
                 <GameGrid games={games} title={getSectionTitle()} onGameClick={handleGameClick} />
                 {hasCookieConsent && (

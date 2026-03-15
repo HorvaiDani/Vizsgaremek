@@ -36,7 +36,22 @@ const getDirectSimilarGames = async (searchTerm) => {
 
 export const recommendationService = {
   getPersonalizedRecommendations: async () => {
+    // Prefer server-side recommendations when a user is logged in
     try {
+      const userName = window.__CURRENT_USER_NAME__ || '';
+      if (userName) {
+        try {
+          const res = await fetch('/api/recommendations', { headers: { 'x-user': userName } });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) return data.slice(0, 18);
+          }
+        } catch (e) {
+          // fall back to client-side
+        }
+      }
+
+      // Fallback: client-side combined recommendations (cookie-based)
       const recommendations = recommendationEngine.getCombinedRecommendations();
       if (recommendations.length === 0) return [];
 
@@ -82,16 +97,24 @@ export const recommendationService = {
 
   getGenreBasedRecommendations: async () => {
     try {
-      const prefs = userBehavior.getGenrePreferences();
-      if (Object.keys(prefs).length === 0) return [];
+      // If user is logged in, request top genres from server; otherwise fallback to cookie
+      let topGenres = [];
+      try {
+        const { getRecommendationGenres } = await import('./trackingApi');
+        const genres = await getRecommendationGenres(window.__CURRENT_USER_NAME__ || '');
+        topGenres = Array.isArray(genres) ? genres.map((g) => g.genre) : [];
+      } catch {
+        const prefs = userBehavior.getGenrePreferences();
+        topGenres = Object.entries(prefs)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 3)
+          .map(([g]) => g);
+      }
 
-      const topGenres = Object.entries(prefs)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 3)
-        .map(([g]) => g);
+      if (!topGenres || topGenres.length === 0) return [];
 
       const all = [];
-      for (const genre of topGenres) {
+      for (const genre of topGenres.slice(0, 3)) {
         try {
           const results = await searchGames(genre, { limit: 15 });
           if (Array.isArray(results)) all.push(...results.slice(0, 5));
