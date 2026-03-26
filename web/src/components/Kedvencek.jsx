@@ -1,37 +1,41 @@
 // Kedvencek oldal – a MySQL-ből betöltött kedvenc játékok listája
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { getKedvencek, deleteKedvenc } from '../services/favoritesApi';
 import Loading from './Loading';
 import Error from './Error';
 import './Kedvencek.css';
 
-const Kedvencek = () => {
+const Kedvencek = ({ user }) => {
   const [lista, setLista] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getKedvencek();
+      const data = await getKedvencek(user?.name);
       setLista(data);
     } catch (err) {
       setError(err.message || 'Nem sikerült betölteni a kedvenceket. Fut a szerver? (npm run server)');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.name]);
 
   useEffect(() => {
+    if (!user?.name) {
+      setLoading(false);
+      return;
+    }
     load();
-  }, []);
+  }, [user?.name, load]);
 
   const handleDelete = async (id) => {
     try {
-      await deleteKedvenc(id);
+      await deleteKedvenc(id, user?.name);
       setLista((prev) => prev.filter((k) => k.id !== id));
     } catch (err) {
       setError(err.message);
@@ -43,6 +47,18 @@ const Kedvencek = () => {
     const d = new Date(str);
     return d.toLocaleDateString('hu-HU');
   };
+
+  if (!user?.name) {
+    return (
+      <div className="kedvencek-page">
+        <h1 className="kedvencek-title">Kedvenc játékaim</h1>
+        <p className="kedvencek-info">A kedvencek megtekintéséhez bejelentkezés szükséges.</p>
+        <Link to="/login" className="kedvencek-link">
+          Bejelentkezés
+        </Link>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

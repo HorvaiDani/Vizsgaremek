@@ -13,7 +13,7 @@ import { BrowserRouter } from 'react-router-dom'
     const root = document.documentElement;
     root.classList.remove('theme-dark', 'theme-light');
     root.classList.add(theme === 'dark' ? 'theme-dark' : 'theme-light');
-  } catch (_) {
+  } catch {
     // noop
   }
 })();

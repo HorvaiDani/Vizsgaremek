@@ -14,7 +14,7 @@ export default defineConfig({
       },
       // Saját szerver (MySQL kedvencek) – npm run server
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3002',
         changeOrigin: true,
       },
     },

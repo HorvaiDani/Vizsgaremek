@@ -16,16 +16,258 @@ import Loading from './components/Loading';
 import Error from './components/Error';
 import { getPopularGames, searchGames } from './services/steamApi';
 import { userBehavior } from './services/cookieService';
+import Login from './components/Login';
+import Achievements from './components/Achievements';
+import { getUserAchievements, addUserAchievement, getUserStats } from './services/achievementsApi';
+import { trackSearch, trackOpened } from './services/trackingApi';
 import './App.css';
+
+const ACHIEVEMENT_CATALOG = [
+  {
+    id: 'login_1',
+    title: 'Üdv a GameHUB-ban!',
+    description: 'Bejelentkeztél és létrehoztad a profilod.',
+    points: 10,
+    reward: 'Profil-keret: Kezdő',
+    metric: 'login',
+    target: 1,
+  },
+  {
+    id: 'search_1',
+    title: 'Első keresés',
+    description: 'Elindítottad az első játékkeresésed a GameHUB-ban.',
+    points: 5,
+    reward: 'Kereső jelvény',
+    metric: 'search',
+    target: 1,
+  },
+  {
+    id: 'search_5',
+    title: 'Kezdő kereső',
+    description: '5 játékra rákerestél a GameHUB-ban.',
+    points: 15,
+    reward: '„Kíváncsi” rangcím',
+    metric: 'search',
+    target: 5,
+  },
+  {
+    id: 'search_10',
+    title: 'Profi kereső',
+    description: '10 keresést végrehajtottál a GameHUB-ban.',
+    points: 30,
+    reward: 'Profil-keret: Bronz',
+    metric: 'search',
+    target: 10,
+  },
+  {
+    id: 'search_20',
+    title: 'Kereső legenda',
+    description: '20 keresést végrehajtottál.',
+    points: 50,
+    reward: 'Profil-keret: Arany',
+    metric: 'search',
+    target: 20,
+  },
+  {
+    id: 'open_1',
+    title: 'Első játék megnyitása',
+    description: 'Megnyitottál egy játék részletes adatlapot.',
+    points: 5,
+    reward: 'Felfedező jelvény',
+    metric: 'open',
+    target: 1,
+  },
+  {
+    id: 'open_5',
+    title: 'Kattintgató',
+    description: 'Megnyitottál 5 játék adatlapot.',
+    points: 20,
+    reward: '„Felfedező” rangcím',
+    metric: 'open',
+    target: 5,
+  },
+  {
+    id: 'open_10',
+    title: 'Böngésző mester',
+    description: 'Megnyitottál 10 játék adatlapot.',
+    points: 40,
+    reward: 'Profil-keret: Ezüst',
+    metric: 'open',
+    target: 10,
+  },
+  {
+    id: 'open_20',
+    title: 'Mindenevő böngésző',
+    description: 'Megnyitottál 20 játék adatlapot.',
+    points: 60,
+    reward: 'Háttér téma: Neon',
+    metric: 'open',
+    target: 20,
+  },
+  {
+    id: 'fav_1',
+    title: 'Első kedvenc',
+    description: 'Hozzáadtál egy játékot a kedvenceidhez.',
+    points: 10,
+    reward: '„Gyűjtögető” jelvény',
+    metric: 'favorite',
+    target: 1,
+  },
+  {
+    id: 'fav_5',
+    title: 'Kedvenc gyűjtögető',
+    description: 'Legalább 5 kedvenc játékot gyűjtöttél össze.',
+    points: 25,
+    reward: 'Profil-keret: Bronz',
+    metric: 'favorite',
+    target: 5,
+  },
+  {
+    id: 'fav_10',
+    title: 'Kedvenc kurátor',
+    description: '10 kedvenc játékot összegyűjtöttél.',
+    points: 50,
+    reward: 'Profil-keret: Arany',
+    metric: 'favorite',
+    target: 10,
+  },
+  {
+    id: 'fav_20',
+    title: 'Gyűjteményőr',
+    description: '20 kedvenc játékot gyűjtöttél össze.',
+    points: 75,
+    reward: 'Profil-keret: Platin',
+    metric: 'favorite',
+    target: 20,
+  },
+  {
+    id: 'comment_1',
+    title: 'Első komment',
+    description: 'Írtál egy kommentet egy játékhoz.',
+    points: 10,
+    reward: '„Véleményvezér” jelvény',
+    metric: 'comment',
+    target: 1,
+  },
+  {
+    id: 'comment_5',
+    title: 'Aktív kommentelő',
+    description: 'Írtál 5 kommentet különböző játékokhoz.',
+    points: 35,
+    reward: 'Profil-keret: Ezüst',
+    metric: 'comment',
+    target: 5,
+  },
+  {
+    id: 'comment_10',
+    title: 'Közösségi arc',
+    description: 'Írtál 10 kommentet játékokhoz.',
+    points: 60,
+    reward: 'Rangcím: „Kritikus”',
+    metric: 'comment',
+    target: 10,
+  },
+  {
+    id: 'all_5',
+    title: 'Mindenből egy kicsit',
+    description: 'Legyen meg 5 keresés, 5 megnyitás, 5 kedvenc és 5 komment.',
+    points: 80,
+    reward: 'Profil-keret: Gyémánt',
+    metric: 'all',
+    target: 5,
+  },
+  {
+    id: 'xp_60',
+    title: 'Szintlépés',
+    description: 'Érd el a 60 össz XP-t.',
+    points: 0,
+    reward: 'Rang: Felfedező',
+    metric: 'xp',
+    target: 60,
+  },
+  {
+    id: 'xp_200',
+    title: 'Legendás státusz',
+    description: 'Érd el a 200 össz XP-t.',
+    points: 0,
+    reward: 'Rang: Legenda',
+    metric: 'xp',
+    target: 200,
+  },
+];
 
 function App() {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [user, setUser] = useState(null);
+  const [searchCount, setSearchCount] = useState(0);
+  const [favoriteCount, setFavoriteCount] = useState(0);
+  const [openedCount, setOpenedCount] = useState(0);
+  const [commentCount, setCommentCount] = useState(0);
+  const [achievements, setAchievements] = useState([]);
+  const [lastUnlocked, setLastUnlocked] = useState(null);
+  const [xp, setXp] = useState(0);
+  const [filters, setFilters] = useState({
+    year: '',
+    price: 'any', // 'any' | 'free' | 'paid'
+    genre: '',
+  });
   const [hasCookieConsent, setHasCookieConsent] = useState(false);
-  const [showRecommendations, setShowRecommendations] = useState(false);
   const navigate = useNavigate();
+
+  const getRankFromXp = (value) => {
+    const v = Number(value) || 0;
+    if (v >= 200) return 'Legenda';
+    if (v >= 120) return 'Veterán';
+    if (v >= 60) return 'Felfedező';
+    if (v >= 20) return 'Újonc';
+    return 'Kezdő';
+  };
+
+  const rank = getRankFromXp(xp);
+
+  const unlockAchievement = (candidate) => {
+    if (!candidate?.id) return;
+    // If already unlocked locally, do nothing
+    if (achievements.some((a) => a.id === candidate.id)) return;
+
+    // Add locally, show toast and optimistically add XP; server will reconcile
+    setAchievements((prev) => [...prev, candidate]);
+    setLastUnlocked(candidate);
+    if (typeof candidate.points === 'number') {
+      setXp((prev) => prev + candidate.points);
+    }
+
+    // Persist unlocked achievement on the server (best-effort)
+    if (user?.name) {
+      addUserAchievement(candidate.id, user.name).then((res) => {
+        if (res && res.stats && typeof res.stats.xp === 'number') {
+          setXp(Number(res.stats.xp) || 0);
+        }
+      }).catch(() => {
+        // ignore failures for now
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    if (xp >= 60) {
+      unlockAchievement(ACHIEVEMENT_CATALOG.find((a) => a.id === 'xp_60'));
+    }
+    if (xp >= 200) {
+      unlockAchievement(ACHIEVEMENT_CATALOG.find((a) => a.id === 'xp_200'));
+    }
+  }, [xp, user]);
+
+  // Clear the lastUnlocked toast after shown once (6s)
+  useEffect(() => {
+    if (!lastUnlocked) return;
+    const timer = setTimeout(() => setLastUnlocked(null), 6000);
+    return () => clearTimeout(timer);
+  }, [lastUnlocked]);
 
   useEffect(() => {
     const consent = userBehavior.hasCookieConsent();
@@ -35,7 +277,6 @@ function App() {
 
   const handleCookieConsentChange = (consent) => {
     setHasCookieConsent(consent);
-    setShowRecommendations(!!consent);
   };
 
   const fetchPopularGames = async () => {
@@ -56,7 +297,6 @@ function App() {
   const handleSearch = async (query) => {
     if (!query.trim()) {
       fetchPopularGames();
-      setShowRecommendations(false);
       return;
     }
 
@@ -70,18 +310,98 @@ function App() {
       }
 
       const results = await searchGames(query);
+      let processedResults = Array.isArray(results) ? results : [];
 
-      if (Array.isArray(results) && results.length > 0) {
-        setGames(results);
+      // Kliens oldali szűrés év, ár és típus alapján
+      if (filters.year) {
+        processedResults = processedResults.filter((game) => String(game.year) === String(filters.year));
+      }
+
+      if (filters.price && filters.price !== 'any') {
+        processedResults = processedResults.filter((game) =>
+          filters.price === 'free' ? game.isFree : !game.isFree
+        );
+      }
+
+      if (filters.genre) {
+        const term = filters.genre.toLowerCase();
+        processedResults = processedResults.filter((game) => {
+          const mainGenre = game.genre ? game.genre.toLowerCase() : '';
+          const extraGenres = Array.isArray(game.genres) ? game.genres.map((g) => g.toLowerCase()) : [];
+          return mainGenre.includes(term) || extraGenres.some((g) => g.includes(term));
+        });
+      }
+
+      if (processedResults.length > 0) {
+        if (user?.name) {
+          trackSearch(user.name, query).catch(() => {});
+        }
+        setGames(processedResults);
+
+        // Achievement számláló csak bejelentkezett felhasználónál
+        if (user) {
+          const next = searchCount + 1;
+          setSearchCount(next);
+
+          setLastUnlocked(null);
+
+          if (next >= 1) {
+            unlockAchievement({
+              id: 'search_1',
+              title: 'Első keresés',
+              description: 'Elindítottad az első játékkeresésed a GameHUB-ban.',
+              points: 5,
+              reward: 'Kereső jelvény',
+            });
+          }
+
+          if (next >= 5) {
+            unlockAchievement({
+              id: 'search_5',
+              title: 'Kezdő kereső',
+              description: '5 játékra rákerestél a GameHUB-ban.',
+              points: 15,
+              reward: '„Kíváncsi” rangcím',
+            });
+          }
+
+          if (next >= 10) {
+            unlockAchievement({
+              id: 'search_10',
+              title: 'Profi kereső',
+              description: '10 keresést végrehajtottál a GameHUB-ban.',
+              points: 30,
+              reward: 'Profil-keret: Bronz',
+            });
+          }
+
+          if (next >= 20) {
+            unlockAchievement({
+              id: 'search_20',
+              title: 'Kereső legenda',
+              description: '20 keresést végrehajtottál.',
+              points: 50,
+              reward: 'Profil-keret: Arany',
+            });
+          }
+
+          if (next >= 5 && openedCount >= 5 && favoriteCount >= 5 && commentCount >= 5) {
+            unlockAchievement({
+              id: 'all_5',
+              title: 'Mindenből egy kicsit',
+              description: 'Legyen meg 5 keresés, 5 megnyitás, 5 kedvenc és 5 komment.',
+              points: 80,
+              reward: 'Profil-keret: Gyémánt',
+            });
+          }
+        }
       } else {
         setGames([]);
         setError('Nem található játék a kereséshez. Próbálj más kifejezést.');
-        setShowRecommendations(false);
       }
     } catch (err) {
       console.error('Search failed:', err);
       setError('A keresés sikertelen. Próbáld újra.');
-      setShowRecommendations(false);
     } finally {
       setLoading(false);
     }
@@ -97,6 +417,67 @@ function App() {
       userBehavior.trackMovieView(game.id, game.title, game.genre);
       userBehavior.trackGenrePreference(game.genre);
     }
+
+    if (user) {
+      // persist opened game and genre preference server-side
+      trackOpened(user.name, { steam_id: game.id, title: game.title, genre: game.genre }).catch(() => {});
+
+      const nextOpened = openedCount + 1;
+      setOpenedCount(nextOpened);
+
+      setLastUnlocked(null);
+
+      if (nextOpened >= 1) {
+        unlockAchievement({
+          id: 'open_1',
+          title: 'Első játék megnyitása',
+          description: 'Megnyitottál egy játék részletes adatlapot.',
+          points: 5,
+          reward: 'Felfedező jelvény',
+        });
+      }
+
+      if (nextOpened >= 5) {
+        unlockAchievement({
+          id: 'open_5',
+          title: 'Kattintgató',
+          description: 'Megnyitottál 5 játék adatlapot.',
+          points: 20,
+          reward: '„Felfedező” rangcím',
+        });
+      }
+
+      if (nextOpened >= 10) {
+        unlockAchievement({
+          id: 'open_10',
+          title: 'Böngésző mester',
+          description: 'Megnyitottál 10 játék adatlapot.',
+          points: 40,
+          reward: 'Profil-keret: Ezüst',
+        });
+      }
+
+      if (nextOpened >= 20) {
+        unlockAchievement({
+          id: 'open_20',
+          title: 'Mindenevő böngésző',
+          description: 'Megnyitottál 20 játék adatlapot.',
+          points: 60,
+          reward: 'Háttér téma: Neon',
+        });
+      }
+
+      if (searchCount >= 5 && nextOpened >= 5 && favoriteCount >= 5 && commentCount >= 5) {
+        unlockAchievement({
+          id: 'all_5',
+          title: 'Mindenből egy kicsit',
+          description: 'Legyen meg 5 keresés, 5 megnyitás, 5 kedvenc és 5 komment.',
+          points: 80,
+          reward: 'Profil-keret: Gyémánt',
+        });
+      }
+    }
+
     navigate(`/game/${game.id}`);
   };
 
@@ -105,12 +486,187 @@ function App() {
     return 'Népszerű játékok';
   };
 
+  const handleFiltersChange = (updatedFilters) => {
+    setFilters((prev) => ({
+      ...prev,
+      ...updatedFilters,
+    }));
+  };
+
+  const handleLogin = (userData) => {
+    setUser(userData);
+    setSearchCount(0);
+    setFavoriteCount(0);
+    setOpenedCount(0);
+    setCommentCount(0);
+    setAchievements([]);
+    setLastUnlocked(null);
+    setXp(0);
+    navigate('/games');
+
+    (async () => {
+      try {
+        const stats = await getUserStats(userData.name).catch(() => null);
+        if (stats) {
+          setSearchCount(Number(stats.search_count) || 0);
+          setOpenedCount(Number(stats.opened_count) || 0);
+          setFavoriteCount(Number(stats.favorite_count) || 0);
+          setCommentCount(Number(stats.comment_count) || 0);
+          setXp(Number(stats.xp) || 0);
+        }
+
+        const list = await getUserAchievements(userData.name).catch(() => []);
+        setAchievements(Array.isArray(list) ? list.map((a) => ({ id: a.id, title: a.title, description: a.description, points: a.points })) : []);
+
+        // Ensure login achievement is stored
+        try {
+          const saved = await addUserAchievement('login_1', userData.name).catch(() => null);
+          if (saved && saved.stats && typeof saved.stats.xp === 'number') {
+            setXp(Number(saved.stats.xp) || 0);
+          }
+          // refresh achievements
+          const refreshed = await getUserAchievements(userData.name).catch(() => []);
+          setAchievements(Array.isArray(refreshed) ? refreshed.map((a) => ({ id: a.id, title: a.title, description: a.description, points: a.points })) : []);
+        } catch (e) {
+          // ignore
+        }
+      } catch (err) {
+        // ignore errors
+      }
+    })();
+    // expose current user for recommendation service fallback
+    window.__CURRENT_USER_NAME__ = userData.name;
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setSearchCount(0);
+    setFavoriteCount(0);
+    setOpenedCount(0);
+    setCommentCount(0);
+    setAchievements([]);
+    setLastUnlocked(null);
+    setXp(0);
+    window.__CURRENT_USER_NAME__ = '';
+  };
+
+  const handleFavoriteAdded = () => {
+    if (!user) return;
+
+    const nextFav = favoriteCount + 1;
+    setFavoriteCount(nextFav);
+
+    setLastUnlocked(null);
+
+    if (nextFav >= 1) {
+      unlockAchievement({
+        id: 'fav_1',
+        title: 'Első kedvenc',
+        description: 'Hozzáadtál egy játékot a kedvenceidhez.',
+        points: 10,
+        reward: '„Gyűjtögető” jelvény',
+      });
+    }
+
+    if (nextFav >= 5) {
+      unlockAchievement({
+        id: 'fav_5',
+        title: 'Kedvenc gyűjtögető',
+        description: 'Legalább 5 kedvenc játékot gyűjtöttél össze.',
+        points: 25,
+        reward: 'Profil-keret: Bronz',
+      });
+    }
+
+    if (nextFav >= 10) {
+      unlockAchievement({
+        id: 'fav_10',
+        title: 'Kedvenc kurátor',
+        description: '10 kedvenc játékot összegyűjtöttél.',
+        points: 50,
+        reward: 'Profil-keret: Arany',
+      });
+    }
+
+    if (nextFav >= 20) {
+      unlockAchievement({
+        id: 'fav_20',
+        title: 'Gyűjteményőr',
+        description: '20 kedvenc játékot gyűjtöttél össze.',
+        points: 75,
+        reward: 'Profil-keret: Platin',
+      });
+    }
+
+    if (searchCount >= 5 && openedCount >= 5 && nextFav >= 5 && commentCount >= 5) {
+      unlockAchievement({
+        id: 'all_5',
+        title: 'Mindenből egy kicsit',
+        description: 'Legyen meg 5 keresés, 5 megnyitás, 5 kedvenc és 5 komment.',
+        points: 80,
+        reward: 'Profil-keret: Gyémánt',
+      });
+    }
+  };
+
+  const handleCommentAdded = () => {
+    if (!user) return;
+    const next = commentCount + 1;
+    setCommentCount(next);
+    setLastUnlocked(null);
+
+    if (next >= 1) {
+      unlockAchievement({
+        id: 'comment_1',
+        title: 'Első komment',
+        description: 'Írtál egy kommentet egy játékhoz.',
+        points: 10,
+        reward: '„Véleményvezér” jelvény',
+      });
+    }
+
+    if (next >= 5) {
+      unlockAchievement({
+        id: 'comment_5',
+        title: 'Aktív kommentelő',
+        description: 'Írtál 5 kommentet különböző játékokhoz.',
+        points: 35,
+        reward: 'Profil-keret: Ezüst',
+      });
+    }
+
+    if (next >= 10) {
+      unlockAchievement({
+        id: 'comment_10',
+        title: 'Közösségi arc',
+        description: 'Írtál 10 kommentet játékokhoz.',
+        points: 60,
+        reward: 'Rangcím: „Kritikus”',
+      });
+    }
+
+    if (searchCount >= 5 && openedCount >= 5 && favoriteCount >= 5 && next >= 5) {
+      unlockAchievement({
+        id: 'all_5',
+        title: 'Mindenből egy kicsit',
+        description: 'Legyen meg 5 keresés, 5 megnyitás, 5 kedvenc és 5 komment.',
+        points: 80,
+        reward: 'Profil-keret: Gyémánt',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="app">
-        <Header />
+        <Header user={user} onLogout={handleLogout} />
         <main className="main-content">
-          <Search onSearch={handleSearch} loading={loading} />
+          <Search
+            onSearch={handleSearch}
+            loading={loading}
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+          />
           <Loading message={searchQuery ? 'Játékok keresése...' : 'Népszerű játékok betöltése...'} />
         </main>
         <CookieConsent onConsentChange={handleCookieConsentChange} />
@@ -121,9 +677,14 @@ function App() {
   if (error) {
     return (
       <div className="app">
-        <Header />
+        <Header user={user} onLogout={handleLogout} />
         <main className="main-content">
-          <Search onSearch={handleSearch} loading={loading} />
+          <Search
+            onSearch={handleSearch}
+            loading={loading}
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+          />
           <Error message={error} onRetry={handleRetry} />
         </main>
         <CookieConsent onConsentChange={handleCookieConsentChange} />
@@ -134,7 +695,7 @@ function App() {
   return (
     <div className="app">
       <ClickSpark />
-      <Header />
+      <Header user={user} onLogout={handleLogout} />
       <main className="main-content">
         <Routes>
           <Route
@@ -154,10 +715,35 @@ function App() {
             }
           />
           <Route
+            path="/login"
+            element={<Login onLogin={handleLogin} />}
+          />
+          <Route
             path="/games"
             element={
               <>
-                <Search onSearch={handleSearch} loading={loading} />
+                <Search
+                  onSearch={handleSearch}
+                  loading={loading}
+                  filters={filters}
+                  onFiltersChange={handleFiltersChange}
+                />
+                {user && lastUnlocked && (
+                  <div className="achievement-inline-toast">
+                    <div className="achievement-toast">
+                      <span className="achievement-toast-label">Új achievement!</span>
+                      <strong>{lastUnlocked.title}</strong>
+                      <span className="achievement-toast-desc">{lastUnlocked.description}</span>
+                      {(typeof lastUnlocked.points === 'number' || lastUnlocked.reward) && (
+                        <span className="achievement-toast-reward">
+                          {typeof lastUnlocked.points === 'number' ? `+${lastUnlocked.points} XP` : null}
+                          {typeof lastUnlocked.points === 'number' && lastUnlocked.reward ? ' • ' : null}
+                          {lastUnlocked.reward || null}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <GameGrid games={games} title={getSectionTitle()} onGameClick={handleGameClick} />
                 {hasCookieConsent && (
                   <Recommendations
@@ -169,8 +755,28 @@ function App() {
               </>
             }
           />
-          <Route path="/game/:id" element={<GameDetail />} />
-          <Route path="/kedvencek" element={<Kedvencek />} />
+          <Route
+            path="/game/:id"
+            element={<GameDetail user={user} onFavoriteAdded={handleFavoriteAdded} onCommentAdded={handleCommentAdded} />}
+          />
+          <Route path="/kedvencek" element={<Kedvencek user={user} />} />
+          <Route
+            path="/achievements"
+            element={
+              <Achievements
+                catalog={ACHIEVEMENT_CATALOG}
+                achievements={achievements}
+                searchCount={searchCount}
+                favoriteCount={favoriteCount}
+                openedCount={openedCount}
+                commentCount={commentCount}
+                xp={xp}
+                rank={rank}
+                isLoggedIn={!!user}
+                lastUnlocked={lastUnlocked}
+              />
+            }
+          />
         </Routes>
       </main>
       <CookieConsent onConsentChange={handleCookieConsentChange} />
