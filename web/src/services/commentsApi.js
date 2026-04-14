@@ -31,3 +31,15 @@ export const addComment = async ({ steamId, text, userName }) => {
   return res.json();
 };
 
+export const deleteComment = async (commentId, userName) => {
+  const res = await fetch(`${API}/comments/${commentId}`, {
+    method: 'DELETE',
+    headers: { 'x-user': String(userName || '') },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.hiba || 'Nem sikerült törölni a kommentet.');
+  }
+  return res.json();
+};
+

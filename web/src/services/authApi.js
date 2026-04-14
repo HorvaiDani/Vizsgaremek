@@ -8,12 +8,8 @@ export const registerUser = async ({ name, email, avatarUrl, password }) => {
     password: String(password || ''),
   };
 
-  if (!payload.name) {
-    throw new Error('A név megadása kötelező.');
-  }
-  if (!payload.password) {
-    throw new Error('A jelszó megadása kötelező.');
-  }
+  if (!payload.name) throw new Error('A név megadása kötelező.');
+  if (!payload.password) throw new Error('A jelszó megadása kötelező.');
 
   const res = await fetch(`${API}/register`, {
     method: 'POST',
@@ -21,12 +17,15 @@ export const registerUser = async ({ name, email, avatarUrl, password }) => {
     body: JSON.stringify(payload),
   });
 
+  const data = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.hiba || 'Nem sikerült a regisztráció.');
+    const err = new Error(data.hiba || 'Nem sikerült a regisztráció.');
+    err.suggestions = data.suggestions || null;
+    throw err;
   }
 
-  return res.json();
+  return data;
 };
 
 export const loginUser = async ({ name, password }) => {

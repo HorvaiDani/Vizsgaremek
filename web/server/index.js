@@ -8,7 +8,7 @@ import bcrypt from 'bcryptjs';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
 
 const DB_HOST = process.env.DB_HOST || '127.0.0.1';
 const DB_PORT = Number(process.env.DB_PORT) || 3306;
@@ -44,19 +44,23 @@ async function createUser({ name, email, avatarUrl, password }) {
   const trimmedEmail = String(email || '').trim() || null;
   const trimmedAvatar = String(avatarUrl || '').trim() || null;
   const rawPassword = String(password || '');
-  if (!trimmedName) {
-    throw new Error('NAME_REQUIRED');
-  }
-  if (!rawPassword) {
-    throw new Error('PASSWORD_REQUIRED');
-  }
+  if (!trimmedName) throw new Error('NAME_REQUIRED');
+  if (!rawPassword) throw new Error('PASSWORD_REQUIRED');
 
-  const [existing] = await pool.query(
-    'SELECT id, name, email, avatar_url AS avatarUrl FROM users WHERE name = ? LIMIT 1',
+  // Check name uniqueness
+  const [existingName] = await pool.query(
+    'SELECT id FROM users WHERE name = ? LIMIT 1',
     [trimmedName],
   );
-  if (existing.length > 0) {
-    return { user: existing[0], created: false };
+  if (existingName.length > 0) throw new Error('NAME_TAKEN');
+
+  // Check email uniqueness (only if provided)
+  if (trimmedEmail) {
+    const [existingEmail] = await pool.query(
+      'SELECT id FROM users WHERE email = ? LIMIT 1',
+      [trimmedEmail],
+    );
+    if (existingEmail.length > 0) throw new Error('EMAIL_TAKEN');
   }
 
   const passwordHash = await bcrypt.hash(rawPassword, 10);
@@ -98,22 +102,40 @@ function requireUser(req, res, next) {
   next();
 }
 
-// Egyszerű "regisztráció": felhasználó mentése az adatbázisba
+// Regisztráció: felhasználó létrehozása az adatbázisban
 app.post('/api/register', async (req, res) => {
   try {
     const { name, email, avatarUrl, password } = req.body || {};
     const result = await createUser({ name, email, avatarUrl, password });
-    res.status(result.created ? 201 : 200).json({
-      ok: true,
-      created: result.created,
-      user: result.user,
-    });
+    res.status(201).json({ ok: true, user: result.user });
   } catch (err) {
     if (err.message === 'NAME_REQUIRED') {
       return res.status(400).json({ hiba: 'A név megadása kötelező.' });
     }
     if (err.message === 'PASSWORD_REQUIRED') {
       return res.status(400).json({ hiba: 'A jelszó megadása kötelező.' });
+    }
+    if (err.message === 'EMAIL_TAKEN') {
+      return res.status(409).json({ hiba: 'Ez az e-mail cím már regisztrálva van.' });
+    }
+    if (err.message === 'NAME_TAKEN') {
+      const trimmed = String(req.body?.name || '').trim();
+      const candidates = [
+        trimmed + '1',
+        trimmed + '2',
+        trimmed + '_pro',
+        trimmed + '_gamer',
+        'x_' + trimmed,
+        trimmed + Math.floor(Math.random() * 900 + 100),
+      ];
+      const placeholders = candidates.map(() => '?').join(', ');
+      const [takenCands] = await pool.query(
+        `SELECT name FROM users WHERE name IN (${placeholders})`,
+        candidates,
+      );
+      const takenSet = new Set(takenCands.map((r) => r.name.toLowerCase()));
+      const suggestions = candidates.filter((c) => !takenSet.has(c.toLowerCase())).slice(0, 4);
+      return res.status(409).json({ hiba: 'Ez a felhasználónév már foglalt.', suggestions });
     }
     console.error('POST /api/register hiba:', err);
     res.status(500).json({ hiba: 'Szerverhiba a regisztráció során.' });
@@ -320,6 +342,38 @@ app.post('/api/comments', requireUser, async (req, res) => {
   }
 });
 
+// Komment törlése – admin bármelyiket, saját user csak a sajátját
+app.delete('/api/comments/:id', requireUser, async (req, res) => {
+  try {
+    const commentId = parseInt(req.params.id, 10);
+    if (!commentId) return res.status(400).json({ hiba: 'Érvénytelen komment ID.' });
+
+    const [rows] = await pool.query(
+      'SELECT c.id, c.user_id, u.name AS userName FROM comments c JOIN users u ON c.user_id = u.id WHERE c.id = ?',
+      [commentId],
+    );
+    if (rows.length === 0) return res.status(404).json({ hiba: 'A komment nem található.' });
+
+    const comment = rows[0];
+    if (req.userName !== 'admin' && comment.userName !== req.userName) {
+      return res.status(403).json({ hiba: 'Nincs jogosultságod törölni ezt a kommentet.' });
+    }
+
+    await pool.query('DELETE FROM comments WHERE id = ?', [commentId]);
+
+    // Decrement comment_count for the comment owner (but not below 0)
+    await pool.query(
+      'UPDATE user_stats SET comment_count = GREATEST(comment_count - 1, 0) WHERE user_id = ?',
+      [comment.user_id],
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /api/comments/:id hiba:', err);
+    res.status(500).json({ hiba: 'Szerverhiba a komment törlésekor.' });
+  }
+});
+
 // Egyszerű bejelentkezés: csak lekérdezi a felhasználót név alapján (nem hoz létre új felhasználót)
 app.post('/api/login', async (req, res) => {
   try {
@@ -349,6 +403,10 @@ app.post('/api/login', async (req, res) => {
       email: userRow.email,
       avatarUrl: userRow.avatarUrl,
     };
+
+    // last_login_at frissítése
+    await pool.query('UPDATE users SET last_login_at = NOW() WHERE id = ?', [userRow.id]).catch(() => {});
+
     res.json({ ok: true, user });
   } catch (err) {
     console.error('POST /api/login hiba:', err);
@@ -536,7 +594,234 @@ app.get('/api/recommendation_genres', requireUser, async (req, res) => {
   }
 });
 
+// Keresési előzmény törlése (csak saját)
+app.delete('/api/search_history/:id', requireUser, async (req, res) => {
+  try {
+    const itemId = parseInt(req.params.id, 10);
+    if (!itemId) return res.status(400).json({ hiba: 'Érvénytelen ID.' });
+
+    const user = await findUserByName(req.userName);
+    if (!user) return res.status(401).json({ hiba: 'Ismeretlen felhasználó.' });
+
+    const [rows] = await pool.query('SELECT id FROM search_history WHERE id = ? AND user_id = ?', [itemId, user.id]);
+    if (rows.length === 0) return res.status(404).json({ hiba: 'Nem található vagy nem a tiéd.' });
+
+    await pool.query('DELETE FROM search_history WHERE id = ?', [itemId]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /api/search_history/:id hiba:', err);
+    res.status(500).json({ hiba: 'Szerverhiba.' });
+  }
+});
+
+// Keresési előzmények lekérése (legutóbbi 30)
+app.get('/api/search_history', requireUser, async (req, res) => {
+  try {
+    const user = await findUserByName(req.userName);
+    if (!user) return res.status(401).json({ hiba: 'Ismeretlen felhasználó.' });
+
+    const [rows] = await pool.query(
+      `SELECT id, query, created_at AS mikor
+       FROM search_history
+       WHERE user_id = ?
+       ORDER BY created_at DESC
+       LIMIT 30`,
+      [user.id],
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /api/search_history hiba:', err);
+    res.status(500).json({ hiba: 'Szerverhiba.' });
+  }
+});
+
+// Megtekintett játékok lekérése (legutóbbi 30)
+app.get('/api/opened_games', requireUser, async (req, res) => {
+  try {
+    const user = await findUserByName(req.userName);
+    if (!user) return res.status(401).json({ hiba: 'Ismeretlen felhasználó.' });
+
+    const [rows] = await pool.query(
+      `SELECT id, steam_app_id AS steam_id, title, genre, created_at AS mikor
+       FROM opened_games
+       WHERE user_id = ?
+       ORDER BY created_at DESC
+       LIMIT 30`,
+      [user.id],
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /api/opened_games hiba:', err);
+    res.status(500).json({ hiba: 'Szerverhiba.' });
+  }
+});
+
+// Profil frissítése (avatár URL és/vagy név)
+// Ha a névváltoztatás foglalt, suggestions tömböt ad vissza
+app.put('/api/profile', requireUser, async (req, res) => {
+  try {
+    const user = await findUserByName(req.userName);
+    if (!user) return res.status(401).json({ hiba: 'Ismeretlen felhasználó.' });
+
+    const { newName, avatarUrl } = req.body || {};
+    const updates = {};
+
+    // Névváltoztatás
+    if (newName !== undefined) {
+      const trimmed = String(newName || '').trim();
+      if (!trimmed) return res.status(400).json({ hiba: 'A név nem lehet üres.' });
+      if (trimmed.length > 50) return res.status(400).json({ hiba: 'A név maximum 50 karakter lehet.' });
+
+      if (trimmed !== user.name) {
+        // Ellenőrizzük, hogy szabad-e a név (saját user-t kizárjuk, így case-változtatás engedélyezett)
+        const [taken] = await pool.query(
+          'SELECT id FROM users WHERE name = ? AND id != ? LIMIT 1',
+          [trimmed, user.id],
+        );
+        if (taken.length > 0) {
+          // Generálunk szabad variációkat
+          const candidates = [
+            trimmed + '1',
+            trimmed + '2',
+            trimmed + '_pro',
+            trimmed + '_gamer',
+            'x_' + trimmed,
+            trimmed + Math.floor(Math.random() * 900 + 100),
+          ];
+          const placeholders = candidates.map(() => '?').join(', ');
+          const [takenCands] = await pool.query(
+            `SELECT name FROM users WHERE name IN (${placeholders})`,
+            candidates,
+          );
+          const takenSet = new Set(takenCands.map((r) => r.name.toLowerCase()));
+          const suggestions = candidates.filter((c) => !takenSet.has(c.toLowerCase())).slice(0, 4);
+          return res.status(409).json({
+            hiba: 'Ez a felhasználónév már foglalt.',
+            suggestions,
+          });
+        }
+        updates.name = trimmed;
+      }
+    }
+
+    // Avatár URL
+    if (avatarUrl !== undefined) {
+      updates.avatar_url = avatarUrl ? String(avatarUrl) : null;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.json({ ok: true, user: { id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl } });
+    }
+
+    const setClauses = Object.keys(updates).map((k) => `\`${k}\` = ?`).join(', ');
+    const values = [...Object.values(updates), user.id];
+    await pool.query(`UPDATE users SET ${setClauses} WHERE id = ?`, values);
+
+    const updatedName = updates.name || user.name;
+    const updatedAvatar = 'avatar_url' in updates ? updates.avatar_url : user.avatarUrl;
+
+    res.json({
+      ok: true,
+      user: { id: user.id, name: updatedName, email: user.email, avatarUrl: updatedAvatar },
+    });
+  } catch (err) {
+    console.error('PUT /api/profile hiba:', err);
+    res.status(500).json({ hiba: 'Szerverhiba a profil frissítésekor.' });
+  }
+});
+
+// Admin overview – csak az 'admin' felhasználónak
+app.get('/api/admin/overview', requireUser, async (req, res) => {
+  if (req.userName !== 'admin') {
+    return res.status(403).json({ hiba: 'Hozzáférés megtagadva.' });
+  }
+  try {
+    // Összes felhasználó + statisztikák + utolsó bejelentkezés
+    const [users] = await pool.query(
+      `SELECT u.id, u.name, u.email, u.created_at AS regDate, u.last_login_at AS lastLogin,
+              COALESCE(s.search_count, 0) AS searches,
+              COALESCE(s.opened_count, 0) AS opened,
+              COALESCE(s.favorite_count, 0) AS favorites,
+              COALESCE(s.comment_count, 0) AS comments,
+              COALESCE(s.xp, 0) AS xp
+       FROM users u
+       LEFT JOIN user_stats s ON s.user_id = u.id
+       ORDER BY u.id ASC`,
+    );
+
+    // Legutóbbi 100 keresési log (összes user)
+    const [searchLogs] = await pool.query(
+      `SELECT sh.id, u.name AS userName, sh.query, sh.created_at AS mikor
+       FROM search_history sh
+       JOIN users u ON sh.user_id = u.id
+       ORDER BY sh.created_at DESC
+       LIMIT 100`,
+    );
+
+    // Legutóbbi 100 megnyitott játék log
+    const [openLogs] = await pool.query(
+      `SELECT og.id, u.name AS userName, og.steam_app_id AS steamId, og.title, og.genre, og.created_at AS mikor
+       FROM opened_games og
+       JOIN users u ON og.user_id = u.id
+       ORDER BY og.created_at DESC
+       LIMIT 100`,
+    );
+
+    // Legutóbbi 100 komment
+    const [commentLogs] = await pool.query(
+      `SELECT c.id, u.name AS userName, c.steam_app_id AS steamId, c.text, c.created_at AS mikor
+       FROM comments c
+       JOIN users u ON c.user_id = u.id
+       ORDER BY c.created_at DESC
+       LIMIT 100`,
+    );
+
+    // Achievement statisztika: hány user szerezte meg az egyes achievementeket
+    const [achStats] = await pool.query(
+      `SELECT ac.id, ac.title, COUNT(ua.user_id) AS count
+       FROM achievement_catalog ac
+       LEFT JOIN user_achievements ua ON ua.achievement_id = ac.id
+       GROUP BY ac.id, ac.title
+       ORDER BY count DESC`,
+    );
+
+    res.json({ users, searchLogs, openLogs, commentLogs, achStats });
+  } catch (err) {
+    console.error('GET /api/admin/overview hiba:', err);
+    res.status(500).json({ hiba: 'Szerverhiba.' });
+  }
+});
+
+// Dev endpoint: AUTO_INCREMENT visszaállítása 1-re (csak üres táblán hat)
+// Hasznos teszt felhasználók törlése után. Éles környezetben tiltott.
+app.post('/api/dev/reset-autoincrement', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ hiba: 'Éles szerveren ez a művelet tiltott.' });
+  }
+  try {
+    const tables = ['users', 'comments', 'favorites', 'opened_games', 'search_history'];
+    for (const t of tables) {
+      await pool.query(`ALTER TABLE \`${t}\` AUTO_INCREMENT = 1`);
+    }
+    res.json({ ok: true, uzenet: 'AUTO_INCREMENT értékek visszaállítva 1-re (hatás: MAX(id)+1 vagy 1, ha üres a tábla).' });
+  } catch (err) {
+    console.error('POST /api/dev/reset-autoincrement hiba:', err);
+    res.status(500).json({ hiba: 'Szerverhiba.' });
+  }
+});
+
 const PORT = Number(globalThis.process?.env?.PORT) || 3002;
+
+// Induláskor: avatar_url oszlop bővítése MEDIUMTEXT-re, ha még VARCHAR
+pool.query('ALTER TABLE `users` MODIFY COLUMN `avatar_url` MEDIUMTEXT DEFAULT NULL')
+  .then(() => console.log('  Migráció: avatar_url → MEDIUMTEXT ✓'))
+  .catch(() => { /* már MEDIUMTEXT, vagy nem változott – nem baj */ });
+
+// Induláskor: last_login_at oszlop hozzáadása, ha még nincs
+pool.query('ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `last_login_at` DATETIME DEFAULT NULL')
+  .then(() => console.log('  Migráció: last_login_at oszlop ✓'))
+  .catch(() => { /* már létezik */ });
+
 app.listen(PORT, () => {
   console.log(`Szerver fut: http://localhost:${PORT}`);
   console.log(`  Adatbázis: mysql://${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}`);

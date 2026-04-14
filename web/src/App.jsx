@@ -17,7 +17,10 @@ import Error from './components/Error';
 import { getPopularGames, searchGames } from './services/steamApi';
 import { userBehavior } from './services/cookieService';
 import Login from './components/Login';
+import Register from './components/Register';
+import Profile from './components/Profile';
 import Achievements from './components/Achievements';
+import Admin from './components/Admin';
 import { getUserAchievements, addUserAchievement, getUserStats } from './services/achievementsApi';
 import { trackSearch, trackOpened } from './services/trackingApi';
 import './App.css';
@@ -201,7 +204,14 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('gamehub_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
   const [searchCount, setSearchCount] = useState(0);
   const [favoriteCount, setFavoriteCount] = useState(0);
   const [openedCount, setOpenedCount] = useState(0);
@@ -216,6 +226,11 @@ function App() {
   });
   const [hasCookieConsent, setHasCookieConsent] = useState(false);
   const navigate = useNavigate();
+
+  // Sync global fallback for recommendation service after localStorage restore
+  useEffect(() => {
+    if (user?.name) window.__CURRENT_USER_NAME__ = user.name;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getRankFromXp = (value) => {
     const v = Number(value) || 0;
@@ -495,6 +510,7 @@ function App() {
 
   const handleLogin = (userData) => {
     setUser(userData);
+    try { localStorage.setItem('gamehub_user', JSON.stringify(userData)); } catch {}
     setSearchCount(0);
     setFavoriteCount(0);
     setOpenedCount(0);
@@ -538,8 +554,15 @@ function App() {
     window.__CURRENT_USER_NAME__ = userData.name;
   };
 
+  const handleUserUpdate = (updatedUser) => {
+    setUser(updatedUser);
+    try { localStorage.setItem('gamehub_user', JSON.stringify(updatedUser)); } catch {}
+    window.__CURRENT_USER_NAME__ = updatedUser?.name || '';
+  };
+
   const handleLogout = () => {
     setUser(null);
+    try { localStorage.removeItem('gamehub_user'); } catch {}
     setSearchCount(0);
     setFavoriteCount(0);
     setOpenedCount(0);
@@ -659,7 +682,7 @@ function App() {
   if (loading) {
     return (
       <div className="app">
-        <Header user={user} onLogout={handleLogout} />
+        <Header user={user} onLogout={handleLogout} onHome={() => { fetchPopularGames(); navigate('/games'); }} />
         <main className="main-content">
           <Search
             onSearch={handleSearch}
@@ -677,7 +700,7 @@ function App() {
   if (error) {
     return (
       <div className="app">
-        <Header user={user} onLogout={handleLogout} />
+        <Header user={user} onLogout={handleLogout} onHome={() => { fetchPopularGames(); navigate('/games'); }} />
         <main className="main-content">
           <Search
             onSearch={handleSearch}
@@ -695,7 +718,7 @@ function App() {
   return (
     <div className="app">
       <ClickSpark />
-      <Header user={user} onLogout={handleLogout} />
+      <Header user={user} onLogout={handleLogout} onHome={() => { fetchPopularGames(); navigate('/games'); }} />
       <main className="main-content">
         <Routes>
           <Route
@@ -717,6 +740,25 @@ function App() {
           <Route
             path="/login"
             element={<Login onLogin={handleLogin} />}
+          />
+          <Route
+            path="/register"
+            element={<Register onLogin={handleLogin} />}
+          />
+          <Route
+            path="/profile"
+            element={
+              <Profile
+                user={user}
+                xp={xp}
+                achievements={achievements}
+                onUserUpdate={handleUserUpdate}
+              />
+            }
+          />
+          <Route
+            path="/admin"
+            element={<Admin user={user} />}
           />
           <Route
             path="/games"

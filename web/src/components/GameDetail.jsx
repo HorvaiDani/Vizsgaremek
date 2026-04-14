@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getGameDetail } from '../services/steamApi';
 import { addKedvenc } from '../services/favoritesApi';
-import { getComments, addComment } from '../services/commentsApi';
+import { getComments, addComment, deleteComment } from '../services/commentsApi';
 import Loading from './Loading';
 import Error from './Error';
 import './GameDetail.css';
@@ -270,6 +270,23 @@ const GameDetail = ({ user, onFavoriteAdded, onCommentAdded }) => {
                   <div className="comment-head">
                     <strong className="comment-user">{c.user}</strong>
                     <span className="comment-date">{formatDateTime(c.mikor)}</span>
+                    {(user?.name === 'admin' || user?.name === c.user) && (
+                      <button
+                        type="button"
+                        className="comment-delete-btn"
+                        title="Komment törlése"
+                        onClick={async () => {
+                          try {
+                            await deleteComment(c.id, user.name);
+                            setComments((prev) => prev.filter((x) => x.id !== c.id));
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                   <div className="comment-text">{c.text}</div>
                 </li>
