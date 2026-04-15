@@ -5,9 +5,9 @@
 
 .game-detail-back {
   position: fixed;
-  top: 1rem;
+  top: 6.5rem;
   left: 1rem;
-  z-index: 20;
+  z-index: 1001;
   background: rgba(0, 0, 0, 0.6);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -217,7 +217,8 @@
   gap: 0.75rem;
 }
 
-.game-detail-g2a-btn {
+.game-detail-g2a-btn,
+.game-detail-eneba-btn {
   display: inline-block;
   background: linear-gradient(135deg, #111827, #1f2937);
   color: #f9fafb;
@@ -230,7 +231,8 @@
   transition: background 0.2s, border-color 0.2s, transform 0.2s;
 }
 
-.game-detail-g2a-btn:hover {
+.game-detail-g2a-btn:hover,
+.game-detail-eneba-btn:hover {
   background: #111827;
   border-color: #fbbf24;
   transform: translateY(-1px);
@@ -400,7 +402,7 @@
   }
 
   .game-detail-back {
-    top: 0.75rem;
+    top: 5.5rem;
     left: 0.75rem;
     padding: 0.4rem 0.8rem;
     font-size: 0.9rem;

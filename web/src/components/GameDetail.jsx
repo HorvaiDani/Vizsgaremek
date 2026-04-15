@@ -11,7 +11,7 @@ import './GameDetail.css';
 
 const DESCRIPTION_PREVIEW_LENGTH = 400;
 
-const GameDetail = ({ user, onFavoriteAdded, onCommentAdded }) => {
+const GameDetail = ({ user, onFavoriteAdded, onCommentAdded, onBackToGames }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [game, setGame] = useState(null);
@@ -101,6 +101,14 @@ const GameDetail = ({ user, onFavoriteAdded, onCommentAdded }) => {
     return d.toLocaleString('hu-HU');
   };
 
+  const handleBack = () => {
+    if (onBackToGames) {
+      onBackToGames();
+      return;
+    }
+    navigate('/games');
+  };
+
   if (loading) {
     return (
       <div className="game-detail-page">
@@ -116,7 +124,7 @@ const GameDetail = ({ user, onFavoriteAdded, onCommentAdded }) => {
           message={error || 'A játék nem található.'}
           onRetry={() => window.location.reload()}
         />
-        <button type="button" className="game-detail-back" onClick={() => navigate(-1)}>
+        <button type="button" className="game-detail-back" onClick={handleBack}>
           ← Vissza
         </button>
       </div>
@@ -132,7 +140,7 @@ const GameDetail = ({ user, onFavoriteAdded, onCommentAdded }) => {
 
   return (
     <div className="game-detail-page">
-      <button type="button" className="game-detail-back" onClick={() => navigate(-1)}>
+      <button type="button" className="game-detail-back" onClick={handleBack}>
         ← Vissza
       </button>
 
@@ -222,6 +230,14 @@ const GameDetail = ({ user, onFavoriteAdded, onCommentAdded }) => {
               className="game-detail-g2a-btn"
             >
               Keresés G2A-n
+            </a>
+            <a
+              href={`https://www.eneba.com/store/all?text=${encodeURIComponent(game.title)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="game-detail-eneba-btn"
+            >
+              Keresés Eneba-n
             </a>
             <button
               type="button"

@@ -689,6 +689,7 @@ function App() {
             loading={loading}
             filters={filters}
             onFiltersChange={handleFiltersChange}
+            searchQuery={searchQuery}
           />
           <Loading message={searchQuery ? 'Játékok keresése...' : 'Népszerű játékok betöltése...'} />
         </main>
@@ -707,6 +708,7 @@ function App() {
             loading={loading}
             filters={filters}
             onFiltersChange={handleFiltersChange}
+            searchQuery={searchQuery}
           />
           <Error message={error} onRetry={handleRetry} />
         </main>
@@ -769,6 +771,7 @@ function App() {
                   loading={loading}
                   filters={filters}
                   onFiltersChange={handleFiltersChange}
+                  searchQuery={searchQuery}
                 />
                 {user && lastUnlocked && (
                   <div className="achievement-inline-toast">
@@ -799,7 +802,7 @@ function App() {
           />
           <Route
             path="/game/:id"
-            element={<GameDetail user={user} onFavoriteAdded={handleFavoriteAdded} onCommentAdded={handleCommentAdded} />}
+            element={<GameDetail user={user} onFavoriteAdded={handleFavoriteAdded} onCommentAdded={handleCommentAdded} onBackToGames={() => navigate('/games')} />}
           />
           <Route path="/kedvencek" element={<Kedvencek user={user} />} />
           <Route

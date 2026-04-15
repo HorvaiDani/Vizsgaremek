@@ -10,13 +10,13 @@ const DEFAULT_FILTERS = {
   genre: '',
 };
 
-const Search = ({ onSearch, loading, filters, onFiltersChange }) => {
-  const [query, setQuery] = useState('');
+const Search = ({ onSearch, loading, filters, onFiltersChange, searchQuery = '' }) => {
+  const [query, setQuery] = useState(searchQuery);
   const safeFilters = { ...DEFAULT_FILTERS, ...(filters || {}) };
 
   useEffect(() => {
-    // Ha kívülről változik a filters, frissítjük a lokális állapotot
-  }, [filters]);
+    setQuery(searchQuery || '');
+  }, [searchQuery]);
 
   const handleSubmit = (e) => {
     e.preventDefault();

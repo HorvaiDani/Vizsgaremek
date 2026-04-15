@@ -102,6 +102,17 @@ function requireUser(req, res, next) {
   next();
 }
 
+function requireAdmin(req, res, next) {
+  if (req.userName !== 'admin') {
+    return res.status(403).json({ hiba: 'Hozzáférés megtagadva.' });
+  }
+  next();
+}
+
+function isSafeTableName(value) {
+  return /^[a-zA-Z0-9_]+$/.test(String(value || ''));
+}
+
 // Regisztráció: felhasználó létrehozása az adatbázisban
 app.post('/api/register', async (req, res) => {
   try {
@@ -731,10 +742,7 @@ app.put('/api/profile', requireUser, async (req, res) => {
 });
 
 // Admin overview – csak az 'admin' felhasználónak
-app.get('/api/admin/overview', requireUser, async (req, res) => {
-  if (req.userName !== 'admin') {
-    return res.status(403).json({ hiba: 'Hozzáférés megtagadva.' });
-  }
+app.get('/api/admin/overview', requireUser, requireAdmin, async (req, res) => {
   try {
     // Összes felhasználó + statisztikák + utolsó bejelentkezés
     const [users] = await pool.query(
@@ -789,6 +797,120 @@ app.get('/api/admin/overview', requireUser, async (req, res) => {
   } catch (err) {
     console.error('GET /api/admin/overview hiba:', err);
     res.status(500).json({ hiba: 'Szerverhiba.' });
+  }
+});
+
+app.get('/api/admin/database', requireUser, requireAdmin, async (req, res) => {
+  try {
+    const [dbInfoRows] = await pool.query(
+      `SELECT DATABASE() AS dbName,
+              VERSION() AS dbVersion,
+              NOW() AS checkedAt,
+              @@hostname AS dbHost`,
+    );
+
+    const [tableRows] = await pool.query(
+      `SELECT t.TABLE_NAME AS name,
+              t.ENGINE AS engine,
+              COALESCE(t.TABLE_ROWS, 0) AS estimatedRows,
+              t.DATA_LENGTH AS dataLength,
+              t.INDEX_LENGTH AS indexLength,
+              t.UPDATE_TIME AS updatedAt,
+              COUNT(c.COLUMN_NAME) AS columnCount
+       FROM information_schema.TABLES t
+       LEFT JOIN information_schema.COLUMNS c
+         ON c.TABLE_SCHEMA = t.TABLE_SCHEMA
+        AND c.TABLE_NAME = t.TABLE_NAME
+       WHERE t.TABLE_SCHEMA = ?
+       GROUP BY t.TABLE_NAME, t.ENGINE, t.TABLE_ROWS, t.DATA_LENGTH, t.INDEX_LENGTH, t.UPDATE_TIME
+       ORDER BY t.TABLE_NAME ASC`,
+      [DB_NAME],
+    );
+
+    const tables = [];
+    let totalEstimatedRows = 0;
+    for (const table of tableRows) {
+      const safeName = String(table.name);
+      if (!isSafeTableName(safeName)) continue;
+      const [countRows] = await pool.query(`SELECT COUNT(*) AS rowCount FROM \`${safeName}\``);
+      const rowCount = Number(countRows[0]?.rowCount) || 0;
+      totalEstimatedRows += rowCount;
+      tables.push({
+        name: safeName,
+        engine: table.engine,
+        rowCount,
+        estimatedRows: Number(table.estimatedRows) || 0,
+        columnCount: Number(table.columnCount) || 0,
+        sizeBytes: Number(table.dataLength || 0) + Number(table.indexLength || 0),
+        updatedAt: table.updatedAt,
+      });
+    }
+
+    res.json({
+      ok: true,
+      status: 'connected',
+      dbName: dbInfoRows[0]?.dbName || DB_NAME,
+      dbVersion: dbInfoRows[0]?.dbVersion || 'ismeretlen',
+      dbHost: dbInfoRows[0]?.dbHost || DB_HOST,
+      checkedAt: dbInfoRows[0]?.checkedAt || new Date().toISOString(),
+      tableCount: tables.length,
+      totalRows: totalEstimatedRows,
+      tables,
+    });
+  } catch (err) {
+    console.error('GET /api/admin/database hiba:', err);
+    res.status(500).json({ hiba: 'Szerverhiba az adatbázis állapotának lekérésekor.' });
+  }
+});
+
+app.get('/api/admin/database/:tableName', requireUser, requireAdmin, async (req, res) => {
+  try {
+    const tableName = String(req.params.tableName || '').trim();
+    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    if (!isSafeTableName(tableName)) {
+      return res.status(400).json({ hiba: 'Érvénytelen táblanév.' });
+    }
+
+    const [allowedRows] = await pool.query(
+      `SELECT TABLE_NAME
+       FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+       LIMIT 1`,
+      [DB_NAME, tableName],
+    );
+    if (allowedRows.length === 0) {
+      return res.status(404).json({ hiba: 'A tábla nem található.' });
+    }
+
+    const [columnRows] = await pool.query(
+      `SELECT COLUMN_NAME AS name,
+              COLUMN_TYPE AS type,
+              IS_NULLABLE AS isNullable,
+              COLUMN_KEY AS columnKey,
+              COLUMN_DEFAULT AS defaultValue,
+              EXTRA AS extra
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+       ORDER BY ORDINAL_POSITION ASC`,
+      [DB_NAME, tableName],
+    );
+
+    const [countRows] = await pool.query(`SELECT COUNT(*) AS totalRows FROM \`${tableName}\``);
+    const orderColumn = columnRows.find((c) => c.columnKey === 'PRI')?.name || columnRows[0]?.name || '1';
+    const [previewRows] = await pool.query(
+      `SELECT * FROM \`${tableName}\` ORDER BY \`${orderColumn}\` DESC LIMIT ${limit}`,
+    );
+
+    res.json({
+      ok: true,
+      tableName,
+      totalRows: Number(countRows[0]?.totalRows) || 0,
+      columns: columnRows,
+      rows: previewRows,
+    });
+  } catch (err) {
+    console.error('GET /api/admin/database/:tableName hiba:', err);
+    res.status(500).json({ hiba: 'Szerverhiba a tábla adatainak lekérésekor.' });
   }
 });
 
