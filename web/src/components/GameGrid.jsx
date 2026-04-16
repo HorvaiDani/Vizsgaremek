@@ -5,7 +5,7 @@ import React from 'react';
 import GameCard from './GameCard';
 import './GameGrid.css';
 
-const GameGrid = ({ games, title = "Népszerű játékok", onGameClick }) => {
+const GameGrid = ({ games, title = "Népszerű játékok", onGameClick, onLoadMore, hasMore = false, loadingMore = false }) => {
   return (
     <section className="game-section">
       <h2 className="section-title">{title}</h2>
@@ -18,6 +18,18 @@ const GameGrid = ({ games, title = "Népszerű játékok", onGameClick }) => {
           />
         ))}
       </div>
+      {hasMore && (
+        <div className="load-more-wrap">
+          <button
+            type="button"
+            className="load-more-button"
+            onClick={onLoadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? 'Betöltés...' : 'Több'}
+          </button>
+        </div>
+      )}
     </section>
   );
 };

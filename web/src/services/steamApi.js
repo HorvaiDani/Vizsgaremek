@@ -85,6 +85,42 @@ const POPULAR_GAME_IDS = [
   489830,   // The Elder Scrolls V: Skyrim
   1085660,  // Destiny 2
   381210,   // Dead by Daylight
+  440,      // Team Fortress 2
+  4000,     // Garry's Mod
+  252490,   // Rust
+  550,      // Left 4 Dead 2
+  945360,   // Among Us
+  1593500,  // God of War
+  413150,   // Stardew Valley
+  367520,   // Hollow Knight
+  1086940,  // Baldur's Gate 3
+  105600,   // Terraria
+  250900,   // The Binding of Isaac: Rebirth
+  431960,   // Wallpaper Engine
+  1203220,  // NARAKA: BLADEPOINT
+  582010,   // Monster Hunter: World
+  1145360,  // Hades
+  1449850,  // Yu-Gi-Oh! Master Duel
+  1938090,  // Call of Duty
+  1174180,  // Red Dead Redemption 2
+  1551360,  // Forza Horizon 5
+  1623730,  // Palworld
+  1888930,  // The Last of Us Part I
+  2358720,  // Black Myth: Wukong
+  264710,   // Subnautica
+  2399830,  // ARK: Survival Ascended
+  553850,   // HELLDIVERS 2
+  892970,   // Valheim
+  990080,   // Hogwarts Legacy
+  1465360,  // SnowRunner
+  1222670,  // The Sims 4
+  221100,   // DayZ
+  236390,   // War Thunder
+  814380,   // Sekiro
+  394360,   // Hearts of Iron IV
+  218620,   // PAYDAY 2
+  108600,   // Project Zomboid
+  227300,   // Euro Truck Simulator 2
 ];
 
 // Egy vagy több játék részleteinek lekérése (Store API – appdetails)
@@ -106,11 +142,13 @@ export const getGameDetails = async (appIds) => {
 
 // Játékok keresése név alapján (Steam Store Search – nem hivatalos, de működik)
 export const searchGames = async (query, options = {}) => {
+  const normalizedQuery = String(query || '').trim();
+  if (!normalizedQuery) return [];
   const limit = Math.max(1, Math.min(Number(options.limit) || 36, 50));
   const start = Math.max(0, Number(options.start) || 0);
   try {
     const url = storeUrl(
-      `/storesearch/?term=${encodeURIComponent(query)}&l=${LANG}&cc=HU&start=${start}&count=${limit}`
+      `/storesearch/?term=${encodeURIComponent(normalizedQuery)}&l=${LANG}&cc=HU&start=${start}&count=${limit}`
     );
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -121,29 +159,7 @@ export const searchGames = async (query, options = {}) => {
       (item) => item.type === 'game' || item.type === 'app' || !item.type
     );
     if (games.length === 0) return [];
-    const appIds = games.slice(0, limit).map((g) => g.id);
-
-    const concurrency = 8;
-    const transformed = [];
-    let idx = 0;
-    const workers = Array.from({ length: Math.min(concurrency, appIds.length) }).map(async () => {
-      while (idx < appIds.length) {
-        const currentIndex = idx++;
-        const id = appIds[currentIndex];
-        try {
-          const details = await getGameDetails(id);
-          const raw = details?.[id];
-          if (raw?.success && raw?.data) {
-            const game = transformStoreData(raw.data, id);
-            if (game.poster || game.isCensored) transformed.push(game);
-          }
-        } catch {
-          // ignore
-        }
-      }
-    });
-    await Promise.all(workers);
-    return transformed;
+    return games.slice(0, limit).map(transformSearchItem).filter(Boolean);
   } catch (error) {
     console.error('Hiba a játékok keresésekor:', error);
     throw error;
@@ -203,6 +219,10 @@ export const getGameDetail = async (appId) => {
 
 // Keresési találat (storesearch item) átalakítása, ha nincs appdetails hívás
 export const transformSearchItem = (item) => {
+  const priceValue = typeof item?.price?.final === 'number'
+    ? Number(item.price.final) / 100
+    : (typeof item?.price?.final_formatted === 'string' && item.price.final_formatted.trim() === '' ? 0 : null);
+
   return {
     id: String(item.id),
     appId: item.id,
@@ -212,14 +232,20 @@ export const transformSearchItem = (item) => {
     genre: 'Játék',
     poster: item.small_image || item.tiny_image || null,
     plot: '',
+    price: priceValue,
+    isFree: priceValue === 0,
+    genres: [],
     steamUrl: item.store_url || `https://store.steampowered.com/app/${item.id}`,
   };
 };
 
 // Népszerű játékok lekérése – egyenkénti kérések (a Steam 400-at ad több appid esetén)
-export const getPopularGames = async () => {
+export const getPopularGames = async (options = {}) => {
+  const start = Math.max(0, Number(options.start) || 0);
+  const count = Math.max(1, Math.min(Number(options.count) || 12, 24));
   try {
-    const ids = POPULAR_GAME_IDS;
+    const ids = POPULAR_GAME_IDS.slice(start, start + count);
+    if (ids.length === 0) return [];
     const results = await Promise.allSettled(ids.map((id) => getGameDetails(id)));
     const games = [];
     results.forEach((result, index) => {

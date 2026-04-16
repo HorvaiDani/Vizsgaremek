@@ -14,7 +14,7 @@ import { Routes, Route, useNavigate } from 'react-router-dom';
 import CookieConsent from './components/CookieConsent';
 import Loading from './components/Loading';
 import Error from './components/Error';
-import { getPopularGames, searchGames } from './services/steamApi';
+import { getPopularGames, searchGames, getGameDetails, transformStoreData } from './services/steamApi';
 import { userBehavior } from './services/cookieService';
 import Login from './components/Login';
 import Register from './components/Register';
@@ -24,6 +24,82 @@ import Admin from './components/Admin';
 import { getUserAchievements, addUserAchievement, getUserStats } from './services/achievementsApi';
 import { trackSearch, trackOpened } from './services/trackingApi';
 import './App.css';
+
+const GENRE_TERMS = [
+  'akcio',
+  'action',
+  'adventure',
+  'anime',
+  'arcade',
+  'battle royale',
+  'casual',
+  'co-op',
+  'coop',
+  'horror',
+  'indie',
+  'multiplayer',
+  'open world',
+  'platformer',
+  'puzzle',
+  'racing',
+  'rpg',
+  'shooter',
+  'simulation',
+  'sports',
+  'strategy',
+  'survival',
+];
+
+const FILTER_ONLY_SEARCH_SEEDS = [
+  'game',
+  'action',
+  'adventure',
+  'indie',
+  'simulation',
+  'strategy',
+  'racing',
+  'sports',
+  'arcade',
+  'multiplayer',
+  'a',
+  'b',
+  'c',
+  'd',
+  'e',
+  'f',
+  'g',
+  'h',
+  'i',
+  'j',
+  'k',
+  'l',
+  'm',
+  'n',
+  'o',
+  'p',
+  'q',
+  'r',
+  's',
+  't',
+  'u',
+  'v',
+  'w',
+  'x',
+  'y',
+  'z',
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '0',
+];
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const ACHIEVEMENT_CATALOG = [
   {
@@ -200,8 +276,10 @@ const ACHIEVEMENT_CATALOG = [
 ];
 
 function App() {
+  const PAGE_SIZE = 12;
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [user, setUser] = useState(() => {
@@ -224,6 +302,8 @@ function App() {
     price: 'any', // 'any' | 'free' | 'paid'
     genre: '',
   });
+  const [hasMoreGames, setHasMoreGames] = useState(false);
+  const [resultOffset, setResultOffset] = useState(0);
   const [hasCookieConsent, setHasCookieConsent] = useState(false);
   const navigate = useNavigate();
 
@@ -294,137 +374,316 @@ function App() {
     setHasCookieConsent(consent);
   };
 
-  const fetchPopularGames = async () => {
-    try {
+  const parseSearchInput = (query) => {
+    const raw = String(query || '').trim();
+    if (!raw) {
+      return { text: '', derivedFilters: {} };
+    }
+
+    let working = ` ${raw.toLowerCase()} `;
+    const derivedFilters = {};
+
+    const yearMatch = working.match(/\b(19\d{2}|20\d{2})\b/);
+    if (yearMatch) {
+      derivedFilters.year = yearMatch[1];
+      working = working.replace(yearMatch[0], ' ');
+    }
+
+    if (/\b(ingyenes|free[- ]?to[- ]?play|free to play|free)\b/.test(working)) {
+      derivedFilters.price = 'free';
+      working = working.replace(/\b(ingyenes|free[- ]?to[- ]?play|free to play|free)\b/g, ' ');
+    } else if (/\b(fizetos|fizetos|paid)\b/.test(working)) {
+      derivedFilters.price = 'paid';
+      working = working.replace(/\b(fizetos|fizetos|paid)\b/g, ' ');
+    }
+
+    const matchedGenre = GENRE_TERMS
+      .slice()
+      .sort((a, b) => b.length - a.length)
+      .find((genre) => working.includes(` ${genre} `));
+
+    if (matchedGenre) {
+      derivedFilters.genre = matchedGenre;
+      working = working.replace(new RegExp(`\\b${matchedGenre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g'), ' ');
+    }
+
+    const text = working.replace(/\s+/g, ' ').trim();
+    return { text, derivedFilters };
+  };
+
+  const mergeFilters = (baseFilters, derivedFilters) => ({
+    year: baseFilters.year || derivedFilters.year || '',
+    price: baseFilters.price !== 'any' ? baseFilters.price : (derivedFilters.price || 'any'),
+    genre: baseFilters.genre || derivedFilters.genre || '',
+  });
+
+  const dedupeGames = (items) => {
+    const seen = new Set();
+    return (Array.isArray(items) ? items : []).filter((game) => {
+      const id = String(game?.id || '');
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  };
+
+  const applyClientFilters = (items, activeFilters) => {
+    let processedResults = Array.isArray(items) ? items : [];
+
+    if (activeFilters.year) {
+      processedResults = processedResults.filter((game) => String(game.year) === String(activeFilters.year));
+    }
+
+    if (activeFilters.price && activeFilters.price !== 'any') {
+      processedResults = processedResults.filter((game) =>
+        activeFilters.price === 'free' ? game.isFree : !game.isFree
+      );
+    }
+
+    if (activeFilters.genre) {
+      const term = activeFilters.genre.toLowerCase();
+      processedResults = processedResults.filter((game) => {
+        const mainGenre = game.genre ? game.genre.toLowerCase() : '';
+        const extraGenres = Array.isArray(game.genres) ? game.genres.map((g) => g.toLowerCase()) : [];
+        return mainGenre.includes(term) || extraGenres.some((g) => g.includes(term));
+      });
+    }
+
+    return processedResults;
+  };
+
+  const getSearchBaseTerm = (query, activeFilters) => {
+    const normalizedQuery = String(query || '').trim();
+    if (normalizedQuery) return normalizedQuery;
+    if (activeFilters.genre) return activeFilters.genre;
+    return '';
+  };
+
+  const getSearchMode = (query, activeFilters) => {
+    if (String(query || '').trim() || activeFilters.genre) return 'search';
+    if (activeFilters.year || activeFilters.price !== 'any') return 'filter-only-search';
+    return 'popular';
+  };
+
+  const searchByFiltersOnly = async (activeFilters, offset = 0) => {
+    const seedPage = Math.floor(offset / PAGE_SIZE);
+    const seeds = activeFilters.genre
+      ? [activeFilters.genre, ...FILTER_ONLY_SEARCH_SEEDS.filter((seed) => seed && seed !== activeFilters.genre)]
+      : FILTER_ONLY_SEARCH_SEEDS;
+
+    const candidates = [];
+    const candidateIds = new Set();
+    const collected = [];
+    const seen = new Set();
+
+    for (const seed of seeds) {
+      let results = [];
+      try {
+        results = await searchGames(seed, { start: seedPage * PAGE_SIZE, limit: PAGE_SIZE });
+      } catch {
+        continue;
+      }
+      for (const game of results) {
+        const id = String(game?.id || '');
+        if (!id || candidateIds.has(id)) continue;
+        candidateIds.add(id);
+        candidates.push(game);
+      }
+      if (candidates.length >= PAGE_SIZE * 10) break;
+    }
+
+    const requiresDetails = Boolean(activeFilters.year || activeFilters.genre);
+    const sourceItems = requiresDetails ? candidates.slice(0, PAGE_SIZE * 5) : candidates;
+
+    for (const game of sourceItems) {
+      let candidate = game;
+
+      if (requiresDetails) {
+        try {
+          const details = await getGameDetails(game.id);
+          const raw = details?.[game.id];
+          if (raw?.success && raw?.data) {
+            candidate = transformStoreData(raw.data, game.id);
+          }
+          await sleep(220);
+        } catch {
+          // fallback to the lightweight search item if details fail
+        }
+      }
+
+      const filtered = applyClientFilters([candidate], activeFilters);
+      if (filtered.length === 0) continue;
+
+      const id = String(candidate?.id || '');
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      collected.push(candidate);
+      if (collected.length >= PAGE_SIZE) {
+        return collected;
+      }
+    }
+
+    return collected;
+  };
+
+  const loadGamesBatch = async ({ query = '', activeFilters = filters, offset = 0, append = false } = {}) => {
+    const rawQuery = String(query || '').trim();
+    const parsed = parseSearchInput(query);
+    const normalizedQuery = parsed.text;
+    const effectiveFilters = mergeFilters(activeFilters, parsed.derivedFilters);
+    const baseTerm = getSearchBaseTerm(normalizedQuery, effectiveFilters);
+    const mode = getSearchMode(normalizedQuery, effectiveFilters);
+
+    if (!append) {
       setLoading(true);
       setError(null);
-      setSearchQuery('');
-      const data = await getPopularGames();
-      setGames(data);
+    } else {
+      setLoadingMore(true);
+    }
+
+    try {
+      let batch = [];
+
+      if (mode === 'search') {
+        const results = await searchGames(baseTerm, { start: offset, limit: PAGE_SIZE });
+        batch = applyClientFilters(results, effectiveFilters);
+      } else if (mode === 'filter-only-search') {
+        batch = await searchByFiltersOnly(effectiveFilters, offset);
+      } else {
+        const results = await getPopularGames({ start: offset, count: PAGE_SIZE });
+        batch = applyClientFilters(results, effectiveFilters);
+      }
+
+      const nextGames = append ? dedupeGames([...games, ...batch]) : dedupeGames(batch);
+      setGames(nextGames);
+      setResultOffset(offset + PAGE_SIZE);
+      setHasMoreGames(batch.length === PAGE_SIZE);
+      setSearchQuery(rawQuery);
+
+      if (nextGames.length === 0) {
+        setError('Nem található játék a megadott keresési feltételekhez. Próbálj más szűrőt vagy keresőkifejezést.');
+      } else {
+        setError(null);
+      }
+
+      return batch;
     } catch (err) {
-      console.error('Failed to fetch games:', err);
-      setError('Nem sikerült betölteni a játékokat. Ellenőrizd az internetkapcsolatot és próbáld újra.');
+      console.error('Search failed:', err);
+      if (!append) {
+        setError('A keresés sikertelen. Próbáld újra.');
+      }
+      return [];
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
+  const fetchPopularGames = async () => {
+    await loadGamesBatch({
+      query: '',
+      activeFilters: { year: '', price: 'any', genre: '' },
+      offset: 0,
+      append: false,
+    });
+  };
+
   const handleSearch = async (query) => {
-    if (!query.trim()) {
+    const parsed = parseSearchInput(query);
+    const normalizedQuery = parsed.text;
+    const effectiveFilters = mergeFilters(filters, parsed.derivedFilters);
+    const hasActiveFilters = Boolean(effectiveFilters.year || effectiveFilters.genre || effectiveFilters.price !== 'any');
+    if (!normalizedQuery && !hasActiveFilters) {
       fetchPopularGames();
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
-      setSearchQuery(query);
-      if (hasCookieConsent) {
-        userBehavior.trackSearch(query);
-        userBehavior.cleanSearchHistory(15);
+    if (normalizedQuery && hasCookieConsent) {
+      userBehavior.trackSearch(normalizedQuery);
+      userBehavior.cleanSearchHistory(15);
+    }
+
+    const processedResults = await loadGamesBatch({
+      query,
+      activeFilters: effectiveFilters,
+      offset: 0,
+      append: false,
+    });
+
+    if (processedResults.length > 0 && user) {
+      if (user?.name && normalizedQuery) {
+        trackSearch(user.name, normalizedQuery).catch(() => {});
       }
 
-      const results = await searchGames(query);
-      let processedResults = Array.isArray(results) ? results : [];
+      const next = searchCount + 1;
+      setSearchCount(next);
 
-      // Kliens oldali szűrés év, ár és típus alapján
-      if (filters.year) {
-        processedResults = processedResults.filter((game) => String(game.year) === String(filters.year));
-      }
+      setLastUnlocked(null);
 
-      if (filters.price && filters.price !== 'any') {
-        processedResults = processedResults.filter((game) =>
-          filters.price === 'free' ? game.isFree : !game.isFree
-        );
-      }
-
-      if (filters.genre) {
-        const term = filters.genre.toLowerCase();
-        processedResults = processedResults.filter((game) => {
-          const mainGenre = game.genre ? game.genre.toLowerCase() : '';
-          const extraGenres = Array.isArray(game.genres) ? game.genres.map((g) => g.toLowerCase()) : [];
-          return mainGenre.includes(term) || extraGenres.some((g) => g.includes(term));
+      if (next >= 1) {
+        unlockAchievement({
+          id: 'search_1',
+          title: 'Első keresés',
+          description: 'Elindítottad az első játékkeresésed a GameHUB-ban.',
+          points: 5,
+          reward: 'Kereső jelvény',
         });
       }
 
-      if (processedResults.length > 0) {
-        if (user?.name) {
-          trackSearch(user.name, query).catch(() => {});
-        }
-        setGames(processedResults);
-
-        // Achievement számláló csak bejelentkezett felhasználónál
-        if (user) {
-          const next = searchCount + 1;
-          setSearchCount(next);
-
-          setLastUnlocked(null);
-
-          if (next >= 1) {
-            unlockAchievement({
-              id: 'search_1',
-              title: 'Első keresés',
-              description: 'Elindítottad az első játékkeresésed a GameHUB-ban.',
-              points: 5,
-              reward: 'Kereső jelvény',
-            });
-          }
-
-          if (next >= 5) {
-            unlockAchievement({
-              id: 'search_5',
-              title: 'Kezdő kereső',
-              description: '5 játékra rákerestél a GameHUB-ban.',
-              points: 15,
-              reward: '„Kíváncsi” rangcím',
-            });
-          }
-
-          if (next >= 10) {
-            unlockAchievement({
-              id: 'search_10',
-              title: 'Profi kereső',
-              description: '10 keresést végrehajtottál a GameHUB-ban.',
-              points: 30,
-              reward: 'Profil-keret: Bronz',
-            });
-          }
-
-          if (next >= 20) {
-            unlockAchievement({
-              id: 'search_20',
-              title: 'Kereső legenda',
-              description: '20 keresést végrehajtottál.',
-              points: 50,
-              reward: 'Profil-keret: Arany',
-            });
-          }
-
-          if (next >= 5 && openedCount >= 5 && favoriteCount >= 5 && commentCount >= 5) {
-            unlockAchievement({
-              id: 'all_5',
-              title: 'Mindenből egy kicsit',
-              description: 'Legyen meg 5 keresés, 5 megnyitás, 5 kedvenc és 5 komment.',
-              points: 80,
-              reward: 'Profil-keret: Gyémánt',
-            });
-          }
-        }
-      } else {
-        setGames([]);
-        setError('Nem található játék a kereséshez. Próbálj más kifejezést.');
+      if (next >= 5) {
+        unlockAchievement({
+          id: 'search_5',
+          title: 'Kezdő kereső',
+          description: '5 játékra rákerestél a GameHUB-ban.',
+          points: 15,
+          reward: '„Kíváncsi” rangcím',
+        });
       }
-    } catch (err) {
-      console.error('Search failed:', err);
-      setError('A keresés sikertelen. Próbáld újra.');
-    } finally {
-      setLoading(false);
+
+      if (next >= 10) {
+        unlockAchievement({
+          id: 'search_10',
+          title: 'Profi kereső',
+          description: '10 keresést végrehajtottál a GameHUB-ban.',
+          points: 30,
+          reward: 'Profil-keret: Bronz',
+        });
+      }
+
+      if (next >= 20) {
+        unlockAchievement({
+          id: 'search_20',
+          title: 'Kereső legenda',
+          description: '20 keresést végrehajtottál.',
+          points: 50,
+          reward: 'Profil-keret: Arany',
+        });
+      }
+
+      if (next >= 5 && openedCount >= 5 && favoriteCount >= 5 && commentCount >= 5) {
+        unlockAchievement({
+          id: 'all_5',
+          title: 'Mindenből egy kicsit',
+          description: 'Legyen meg 5 keresés, 5 megnyitás, 5 kedvenc és 5 komment.',
+          points: 80,
+          reward: 'Profil-keret: Gyémánt',
+        });
+      }
     }
   };
 
   const handleRetry = () => {
-    if (searchQuery) handleSearch(searchQuery);
+    if (searchQuery || filters.year || filters.genre || filters.price !== 'any') handleSearch(searchQuery);
     else fetchPopularGames();
+  };
+
+  const handleLoadMore = async () => {
+    await loadGamesBatch({
+      query: searchQuery,
+      activeFilters: filters,
+      offset: resultOffset,
+      append: true,
+    });
   };
 
   const handleGameClick = (game) => {
@@ -498,6 +757,7 @@ function App() {
 
   const getSectionTitle = () => {
     if (searchQuery) return `Keresési eredmények: "${searchQuery}"`;
+    if (filters.year || filters.genre || filters.price !== 'any') return 'Szurt jatekok';
     return 'Népszerű játékok';
   };
 
@@ -789,7 +1049,14 @@ function App() {
                     </div>
                   </div>
                 )}
-                <GameGrid games={games} title={getSectionTitle()} onGameClick={handleGameClick} />
+                <GameGrid
+                  games={games}
+                  title={getSectionTitle()}
+                  onGameClick={handleGameClick}
+                  onLoadMore={handleLoadMore}
+                  hasMore={hasMoreGames}
+                  loadingMore={loadingMore}
+                />
                 {hasCookieConsent && (
                   <Recommendations
                     key={searchQuery || 'default'}
