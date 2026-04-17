@@ -69,6 +69,15 @@
   color: #ff6b35;
 }
 
+.theme-light .recommendations-empty {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.theme-light .recommendations-empty p {
+  color: #111111;
+}
+
 /* Responsive design */
 @media (max-width: 1200px) {
   .recommendations-section {

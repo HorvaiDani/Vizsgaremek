@@ -175,6 +175,22 @@
   opacity: 0.9;
 }
 
+.theme-light .game-card {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.theme-light .game-info {
+  background: #ffffff;
+}
+
+.theme-light .game-title,
+.theme-light .game-details,
+.theme-light .game-plot {
+  color: #111111;
+}
+
 @media (max-width: 768px) {
   .game-card {
     border-radius: 12px;

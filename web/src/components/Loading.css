@@ -28,6 +28,10 @@
   opacity: 0.8;
 }
 
+.theme-light .loading-message {
+  color: #111111;
+}
+
 @keyframes spin {
   0% {
     transform: rotate(0deg);

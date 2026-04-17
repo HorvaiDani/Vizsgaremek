@@ -427,6 +427,16 @@ function App() {
     });
   };
 
+  const getSeedTermsForFilters = (activeFilters) => {
+    const seeds = [];
+    if (activeFilters.genre) seeds.push(activeFilters.genre);
+    if (activeFilters.year) seeds.push(String(activeFilters.year));
+    if (activeFilters.price === 'free') seeds.push('free');
+    if (activeFilters.price === 'paid') seeds.push('game');
+    seeds.push('game', 'action', 'adventure', 'indie');
+    return Array.from(new Set(seeds.filter(Boolean)));
+  };
+
   const applyClientFilters = (items, activeFilters) => {
     let processedResults = Array.isArray(items) ? items : [];
 
@@ -456,12 +466,17 @@ function App() {
     const normalizedQuery = String(query || '').trim();
     if (normalizedQuery) return normalizedQuery;
     if (activeFilters.genre) return activeFilters.genre;
+    if (activeFilters.year) return String(activeFilters.year);
+    if (activeFilters.price !== 'any') return 'game';
     return '';
   };
 
   const getSearchMode = (query, activeFilters) => {
-    if (String(query || '').trim() || activeFilters.genre) return 'search';
-    if (activeFilters.year || activeFilters.price !== 'any') return 'filter-only-search';
+    const hasQuery = Boolean(String(query || '').trim());
+    const hasActiveFilters = Boolean(
+      activeFilters.year || activeFilters.genre || activeFilters.price !== 'any'
+    );
+    if (hasQuery || hasActiveFilters) return 'search';
     return 'popular';
   };
 
@@ -545,8 +560,57 @@ function App() {
       let batch = [];
 
       if (mode === 'search') {
-        const results = await searchGames(baseTerm, { start: offset, limit: PAGE_SIZE });
-        batch = applyClientFilters(results, effectiveFilters);
+        const activeCriteriaCount = [
+          normalizedQuery,
+          effectiveFilters.year,
+          effectiveFilters.genre,
+          effectiveFilters.price !== 'any' ? effectiveFilters.price : '',
+        ].filter(Boolean).length;
+
+        const isMultiFilterSearch = !normalizedQuery && activeCriteriaCount > 1;
+        let results = [];
+
+        if (isMultiFilterSearch) {
+          const seeds = getSeedTermsForFilters(effectiveFilters);
+          const merged = [];
+          for (const seed of seeds) {
+            try {
+              const chunk = await searchGames(seed, { start: offset, limit: PAGE_SIZE * 2 });
+              merged.push(...chunk);
+            } catch {
+              // if one seed fails, continue with next seed
+            }
+            if (merged.length >= PAGE_SIZE * 5) break;
+          }
+          results = dedupeGames(merged);
+        } else {
+          results = await searchGames(baseTerm, { start: offset, limit: PAGE_SIZE * 2 });
+        }
+
+        const needsYearDetails = Boolean(effectiveFilters.year);
+        const sourceForFiltering = results.slice(0, PAGE_SIZE * 4);
+        const enrichedResults = needsYearDetails
+          ? await Promise.all(sourceForFiltering.map(async (game) => {
+            try {
+              const details = await getGameDetails(game.id);
+              const raw = details?.[game.id];
+              if (raw?.success && raw?.data) {
+                return transformStoreData(raw.data, game.id);
+              }
+              return game;
+            } catch {
+              return game;
+            }
+          }))
+          : sourceForFiltering;
+        const filtersForSearchResults = (
+          !normalizedQuery &&
+          effectiveFilters.genre &&
+          !effectiveFilters.year
+        )
+          ? { ...effectiveFilters, genre: '' }
+          : effectiveFilters;
+        batch = applyClientFilters(enrichedResults, filtersForSearchResults).slice(0, PAGE_SIZE);
       } else if (mode === 'filter-only-search') {
         batch = await searchByFiltersOnly(effectiveFilters, offset);
       } else {
@@ -757,7 +821,7 @@ function App() {
 
   const getSectionTitle = () => {
     if (searchQuery) return `Keresési eredmények: "${searchQuery}"`;
-    if (filters.year || filters.genre || filters.price !== 'any') return 'Szurt jatekok';
+    if (filters.year || filters.genre || filters.price !== 'any') return 'Szűrt Játékok';
     return 'Népszerű játékok';
   };
 
@@ -951,7 +1015,7 @@ function App() {
             onFiltersChange={handleFiltersChange}
             searchQuery={searchQuery}
           />
-          <Loading message={searchQuery ? 'Játékok keresése...' : 'Népszerű játékok betöltése...'} />
+          <Loading message={searchQuery ? 'Játékok keresése...' : 'Játékok betöltése...'} />
         </main>
         <CookieConsent onConsentChange={handleCookieConsentChange} />
       </div>
