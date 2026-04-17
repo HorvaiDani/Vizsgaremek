@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import './Admin.css';
-import { getAdminOverview, getAdminDatabaseSummary, getAdminTablePreview } from '../services/adminApi';
+import {
+  getAdminOverview,
+  getAdminDatabaseSummary,
+  getAdminTablePreview,
+  deleteAdminUser,
+  deleteAdminSearchLog,
+  deleteAdminOpenedLog,
+} from '../services/adminApi';
 import { deleteComment } from '../services/commentsApi';
 
 const formatDate = (raw) => {
@@ -42,6 +49,11 @@ const Admin = ({ user }) => {
   const [tableLoading, setTableLoading] = useState(false);
   const [tableError, setTableError] = useState(null);
 
+  const refreshOverview = async () => {
+    const overview = await getAdminOverview(user.name);
+    setData(overview);
+  };
+
   useEffect(() => {
     if (!user?.name) return;
     setLoading(true);
@@ -67,14 +79,48 @@ const Admin = ({ user }) => {
   }, [user?.name, selectedTable]);
 
   const handleDeleteComment = async (commentId) => {
+    const ok = window.confirm('Biztosan törlöd ezt a kommentet?');
+    if (!ok) return;
     try {
       await deleteComment(commentId, user.name);
-      setData((prev) => ({
-        ...prev,
-        commentLogs: prev.commentLogs.filter((c) => c.id !== commentId),
-      }));
+      await refreshOverview();
     } catch (err) {
-      console.error(err);
+      window.alert(err.message || 'Nem sikerült törölni a kommentet.');
+    }
+  };
+
+  const handleDeleteSearchLog = async (logId) => {
+    const ok = window.confirm('Biztosan törlöd ezt a keresési előzményt?');
+    if (!ok) return;
+    try {
+      await deleteAdminSearchLog(user.name, logId);
+      await refreshOverview();
+    } catch (err) {
+      window.alert(err.message || 'Nem sikerült törölni a keresési előzményt.');
+    }
+  };
+
+  const handleDeleteUser = async (targetUser) => {
+    const ok = window.confirm(
+      `Biztosan törlöd ezt a fiókot?\n\nFelhasználó: ${targetUser.name}\nID: ${targetUser.id}\n\nA felhasználó összes adata is törlődik.`
+    );
+    if (!ok) return;
+    try {
+      await deleteAdminUser(user.name, targetUser.id);
+      await refreshOverview();
+    } catch (err) {
+      window.alert(err.message || 'Nem sikerült törölni a felhasználót.');
+    }
+  };
+
+  const handleDeleteOpenedLog = async (logId) => {
+    const ok = window.confirm('Biztosan törlöd ezt a játék megnyitási bejegyzést?');
+    if (!ok) return;
+    try {
+      await deleteAdminOpenedLog(user.name, logId);
+      await refreshOverview();
+    } catch (err) {
+      window.alert(err.message || 'Nem sikerült törölni a megnyitási logot.');
     }
   };
 
@@ -168,6 +214,7 @@ const Admin = ({ user }) => {
                   <th>Megnyitás</th>
                   <th>Kedvenc</th>
                   <th>Komment</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -183,10 +230,19 @@ const Admin = ({ user }) => {
                     <td>{u.opened}</td>
                     <td>{u.favorites}</td>
                     <td>{u.comments}</td>
+                    <td>
+                      {u.name !== 'admin' && (
+                        <button
+                          className="admin-delete-btn"
+                          title="Felhasználó törlése"
+                          onClick={() => handleDeleteUser(u)}
+                        >×</button>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {filteredUsers.length === 0 && (
-                  <tr><td colSpan={10} className="admin-empty">Nincs találat.</td></tr>
+                  <tr><td colSpan={11} className="admin-empty">Nincs találat.</td></tr>
                 )}
               </tbody>
             </table>
@@ -198,7 +254,7 @@ const Admin = ({ user }) => {
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
-                <tr><th>#</th><th>Felhasználó</th><th>Keresés</th><th>Időpont</th></tr>
+                <tr><th>#</th><th>Felhasználó</th><th>Keresés</th><th>Időpont</th><th></th></tr>
               </thead>
               <tbody>
                 {filteredSearchLogs.map((l) => (
@@ -207,10 +263,17 @@ const Admin = ({ user }) => {
                     <td>{l.userName}</td>
                     <td>„{l.query}"</td>
                     <td>{formatDate(l.mikor)}</td>
+                    <td>
+                      <button
+                        className="admin-delete-btn"
+                        title="Keresési előzmény törlése"
+                        onClick={() => handleDeleteSearchLog(l.id)}
+                      >×</button>
+                    </td>
                   </tr>
                 ))}
                 {filteredSearchLogs.length === 0 && (
-                  <tr><td colSpan={4} className="admin-empty">Nincs találat.</td></tr>
+                  <tr><td colSpan={5} className="admin-empty">Nincs találat.</td></tr>
                 )}
               </tbody>
             </table>
@@ -222,7 +285,7 @@ const Admin = ({ user }) => {
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
-                <tr><th>#</th><th>Felhasználó</th><th>Játék</th><th>Műfaj</th><th>Steam ID</th><th>Időpont</th></tr>
+                <tr><th>#</th><th>Felhasználó</th><th>Játék</th><th>Műfaj</th><th>Steam ID</th><th>Időpont</th><th></th></tr>
               </thead>
               <tbody>
                 {filteredOpenLogs.map((l) => (
@@ -233,10 +296,17 @@ const Admin = ({ user }) => {
                     <td>{l.genre || '–'}</td>
                     <td>{l.steamId}</td>
                     <td>{formatDate(l.mikor)}</td>
+                    <td>
+                      <button
+                        className="admin-delete-btn"
+                        title="Megnyitási log törlése"
+                        onClick={() => handleDeleteOpenedLog(l.id)}
+                      >×</button>
+                    </td>
                   </tr>
                 ))}
                 {filteredOpenLogs.length === 0 && (
-                  <tr><td colSpan={6} className="admin-empty">Nincs találat.</td></tr>
+                  <tr><td colSpan={7} className="admin-empty">Nincs találat.</td></tr>
                 )}
               </tbody>
             </table>

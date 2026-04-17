@@ -742,6 +742,65 @@ app.put('/api/profile', requireUser, async (req, res) => {
 });
 
 // Admin overview – csak az 'admin' felhasználónak
+app.delete('/api/admin/users/:id', requireUser, requireAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!userId) return res.status(400).json({ hiba: 'Érvénytelen felhasználó ID.' });
+
+    const [rows] = await pool.query('SELECT id, name FROM users WHERE id = ? LIMIT 1', [userId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ hiba: 'A felhasználó nem található.' });
+    }
+
+    const targetUser = rows[0];
+    if (String(targetUser.name).toLowerCase() === 'admin') {
+      return res.status(400).json({ hiba: 'Az admin felhasználó nem törölhető.' });
+    }
+
+    await pool.query('DELETE FROM users WHERE id = ?', [userId]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /api/admin/users/:id hiba:', err);
+    res.status(500).json({ hiba: 'Szerverhiba a felhasználó törlésekor.' });
+  }
+});
+
+app.delete('/api/admin/search_history/:id', requireUser, requireAdmin, async (req, res) => {
+  try {
+    const itemId = parseInt(req.params.id, 10);
+    if (!itemId) return res.status(400).json({ hiba: 'Érvénytelen keresési előzmény ID.' });
+
+    const [rows] = await pool.query('SELECT id FROM search_history WHERE id = ? LIMIT 1', [itemId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ hiba: 'A keresési előzmény nem található.' });
+    }
+
+    await pool.query('DELETE FROM search_history WHERE id = ?', [itemId]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /api/admin/search_history/:id hiba:', err);
+    res.status(500).json({ hiba: 'Szerverhiba a keresési előzmény törlésekor.' });
+  }
+});
+
+app.delete('/api/admin/opened_games/:id', requireUser, requireAdmin, async (req, res) => {
+  try {
+    const itemId = parseInt(req.params.id, 10);
+    if (!itemId) return res.status(400).json({ hiba: 'Érvénytelen megnyitási log ID.' });
+
+    const [rows] = await pool.query('SELECT id FROM opened_games WHERE id = ? LIMIT 1', [itemId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ hiba: 'A megnyitási log nem található.' });
+    }
+
+    await pool.query('DELETE FROM opened_games WHERE id = ?', [itemId]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /api/admin/opened_games/:id hiba:', err);
+    res.status(500).json({ hiba: 'Szerverhiba a megnyitási log törlésekor.' });
+  }
+});
+
 app.get('/api/admin/overview', requireUser, requireAdmin, async (req, res) => {
   try {
     // Összes felhasználó + statisztikák + utolsó bejelentkezés
@@ -956,7 +1015,8 @@ app.listen(PORT, () => {
 
 // --- Recommendation helper constants and endpoints ---
 const STORE_ORIGIN = 'https://store.steampowered.com/api';
-const LANG = 'hungarian';
+// Keep original Steam titles on server-side recommendations as well.
+const LANG = 'english';
 const ADULT_KEYWORDS = [
   'hentai','erotic','sexual','sex','nudity','nude','porn','incest','lust','goddess',
 ];

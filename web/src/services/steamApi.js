@@ -5,7 +5,8 @@ const STEAM_API_KEY = '6FE4A795528F99F7FAF71C95849EB2A6';
 // Dev: Vite proxy (/steam-api → store.steampowered.com/api). Production: CORS proxy, mert a Steam nem engedélyez CORS-t.
 const STORE_ORIGIN = 'https://store.steampowered.com/api';
 const WEB_API_BASE = 'https://api.steampowered.com';
-const LANG = 'hungarian';
+// Keep original Steam titles (no Hungarian localization)
+const LANG = 'english';
 
 const ADULT_KEYWORDS = [
   'hentai',
